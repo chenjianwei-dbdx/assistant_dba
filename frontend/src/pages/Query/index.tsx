@@ -4,8 +4,7 @@ import {
   PlayCircleOutlined,
   FormatPainterOutlined,
   ThunderboltOutlined,
-  ExportOutlined,
-  HistoryOutlined
+  ExportOutlined
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 
@@ -34,7 +33,7 @@ const mockData: QueryResult[] = [
 ]
 
 export default function Query() {
-  const [sql, setSql] = useState('SELECT * FROM users LIMIT 10;')
+  const [sql] = useState('SELECT * FROM users LIMIT 10;')
   const [loading, setLoading] = useState(false)
   const [connectionId, setConnectionId] = useState<string>('')
 
