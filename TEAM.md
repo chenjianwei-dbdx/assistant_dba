@@ -5,10 +5,10 @@
 | 姓名 | GitHub | 角色 | 职责 |
 |------|--------|------|------|
 | - | @chenjianwei-dbdx | Owner | 项目负责人 |
-| 测试员A | @tester_member | QA Engineer | 模块功能测试、pytest |
-| 后端开发A | @backend_member | Backend Developer | 后端开发、依赖安装 |
-| 前端开发A | @frontend_member | Frontend Developer | 前端开发、技术选型 |
-| 代码审核A | @reviewer_member | Code Reviewer | 代码安全、通用性审核 |
+| - | @chenjianwei-dbdx | QA Engineer | 模块功能测试、pytest |
+| - | @chenjianwei-dbdx | Backend Developer | 后端开发、依赖安装 |
+| - | @chenjianwei-dbdx | Frontend Developer | 前端开发、技术选型 |
+| - | @chenjianwei-dbdx | Code Reviewer | 代码安全、通用性审核 |
 
 ---
 
