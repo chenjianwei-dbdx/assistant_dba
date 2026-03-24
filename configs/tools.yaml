@@ -1,0 +1,54 @@
+# ============================================================
+# 工具定义文件
+# ============================================================
+# 在此定义所有可用的预定义工具
+# 新增工具只需在此添加定义，无需修改代码
+
+tools:
+  - name: file_search
+    description: 在指定目录中搜索文件，支持按名称、扩展名搜索
+    category: file_ops
+    parameters:
+      - name: directory
+        type: string
+        required: true
+        description: 要搜索的目录路径
+      - name: pattern
+        type: string
+        required: false
+        description: 文件名匹配模式（支持 glob，如 *.py）
+      - name: file_type
+        type: string
+        required: false
+        description: 按文件扩展名过滤（如 py, js, txt）
+    script_path: scripts/file_search.sh
+    timeout: 30
+
+  - name: system_monitor
+    description: 查询系统资源使用情况（CPU、内存、磁盘、网络）
+    category: system
+    parameters:
+      - name: metric
+        type: string
+        required: true
+        enum: ["cpu", "memory", "disk", "network"]
+        description: 要查询的资源类型
+      - name: duration
+        type: integer
+        required: false
+        default: 5
+        description: 监控持续时间（秒）
+    script_path: scripts/system_monitor.sh
+    timeout: 15
+
+  - name: git_status
+    description: 查看 Git 仓库状态
+    category: vcs
+    parameters:
+      - name: path
+        type: string
+        required: false
+        default: "."
+        description: 仓库路径，默认为当前目录
+    script_path: scripts/git_status.sh
+    timeout: 10

@@ -1,0 +1,22 @@
+[project]
+name = "smart-assistant"
+version = "0.1.0"
+description = "基于 Streamlit 的智能对话助手"
+requires-python = ">=3.6.8"
+dependencies = [
+    "streamlit>=1.28.0",
+    "sqlalchemy>=1.4.0,<2.0",
+    "requests>=2.25.0",
+    "pyyaml>=5.4.0",
+    "pysqlite3>=0.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "ruff>=0.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

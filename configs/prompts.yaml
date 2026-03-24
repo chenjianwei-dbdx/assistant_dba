@@ -1,0 +1,80 @@
+# ============================================================
+# 提示词模板配置
+# ============================================================
+# 所有 LLM 提示词模板集中在此文件
+# 注意：JSON 示例中的花括号需要用 {{{{ 和 }}}} 转义
+
+prompts:
+  # 意图分析模板
+  intent_analysis: |
+    你是一个智能助手的消息意图分析器。
+
+    ## 可用工具列表
+    {tool_definitions}
+
+    ## 分析任务
+    分析用户消息，确定是应该使用工具还是直接回答。
+
+    ## 输出格式（必须为有效JSON）
+    {{{{ "intent": "tool_use" | "qa" | "unknown", "tool_name": "工具名称（仅当 intent=tool_use 时填写）", "confidence": 0.0-1.0, "reasoning": "分析理由", "extracted_params": {{ "参数名": "从用户消息中提取的参数值" }}, "missing_params": ["缺少的必填参数列表"] }}}}
+
+    ## 用户消息
+    {user_input}
+
+    请直接输出JSON，不要有其他内容。
+
+  # 参数提取模板
+  param_extraction: |
+    你是一个参数提取助手。
+
+    ## 当前任务
+    {task_description}
+
+    ## 工具名称
+    {tool_name}
+
+    ## 参数定义
+    {param_definitions}
+
+    ## 已收集参数
+    {collected_params}
+
+    ## 缺少参数
+    {missing_params}
+
+    ## 用户上一条消息
+    {user_input}
+
+    请从用户消息中提取缺少的参数值。
+
+    ## 输出格式（必须为有效JSON）
+    {{{{ "extracted": {{ "参数名": "提取的值" }}, "still_missing": ["仍未提供的参数"], "clarification_needed": "需要向用户澄清的问题（如果没有则为空字符串）" }}}}
+
+    请直接输出JSON，不要有其他内容。
+
+  # Q&A 回答模板
+  qa_response: |
+    你是一个有帮助的AI助手。请根据对话历史回答用户的问题。
+
+    ## 对话历史
+    {conversation_history}
+
+    ## 用户问题
+    {user_input}
+
+    请直接回答，保持简洁和有帮助。如果问题涉及敏感操作，请提醒用户确认。
+
+  # 工具结果总结模板
+  tool_result_summary: |
+    你是一个结果总结助手。
+
+    ## 工具执行结果
+    {tool_result}
+
+    ## 用户原始请求
+    {user_request}
+
+    ## 工具名称
+    {tool_name}
+
+    请用简洁易懂的方式向用户解释执行结果。如果执行失败，请说明可能的原因。

@@ -1,0 +1,35 @@
+# ============================================================
+# 智能助手配置文件
+# ============================================================
+# 所有配置都在此文件，代码只读不写
+# 内网部署时只需修改此文件
+
+app:
+  host: "0.0.0.0"
+  port: 8501
+  debug: false
+  password: "YOUR_PASSWORD_HERE"  # 登录密码，请修改为强密码
+  invite_code: "YOUR_INVITE_CODE_HERE"  # 注册邀请码
+
+# LLM 配置
+# 本地测试用 MiniMax，内网部署改为 ollama
+llm:
+  provider: "minimax"           # 可选: minimax, ollama, openai
+  model: "MiniMax-M2"            # MiniMax 模型名
+  api_key: "YOUR_API_KEY_HERE"   # LLM API Key
+  base_url: "https://api.minimaxi.com/v1"
+  timeout: 120
+
+# 数据库配置
+# 本地开发用 SQLite，内网部署改为 mysql
+database:
+  type: "sqlite"                 # 可选: sqlite, mysql
+  db_path: "data/smart_assistant.db"
+
+  # MySQL 配置（type: mysql 时生效）
+  host: "localhost"
+  port: 3306
+  username: "root"
+  password: "YOUR_DB_PASSWORD_HERE"
+  database: "smart_assistant"
+  charset: "utf8mb4"
