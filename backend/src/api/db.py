@@ -1,41 +1,113 @@
 """
 Database API routes
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Any
+from typing import Optional
 
 router = APIRouter()
 
 
-class Connection(BaseModel):
-    id: str | None = None
+class ConnectionCreate(BaseModel):
     name: str
-    host: str
-    port: int
+    db_type: str = "mysql"
+    host: str = "localhost"
+    port: int = 3306
     database: str
     username: str
     password: str
+    charset: str = "utf8mb4"
+
+
+class ConnectionTest(BaseModel):
+    name: Optional[str] = None
+    db_type: str = "mysql"
+    host: str = "localhost"
+    port: int = 3306
+    database: str
+    username: str
+    password: str
+    charset: str = "utf8mb4"
 
 
 class QueryRequest(BaseModel):
     connection_id: str
     sql: str
+    limit: int = 1000
 
 
 @router.get("/connections")
 async def list_connections():
     """获取所有连接"""
-    return {"connections": []}
+    from src.db.manager import get_connection_manager
+    manager = get_connection_manager()
+    return {"connections": manager.list_connections()}
 
 
 @router.post("/connections")
-async def create_connection(conn: Connection):
+async def create_connection(conn: ConnectionCreate):
     """创建新连接"""
-    return {"id": "new-id", **conn.model_dump()}
+    from src.db.manager import get_connection_manager
+    manager = get_connection_manager()
+    result = manager.create_connection(conn.model_dump())
+    return result.to_dict()
+
+
+@router.delete("/connections/{connection_id}")
+async def delete_connection(connection_id: str):
+    """删除连接"""
+    from src.db.manager import get_connection_manager
+    manager = get_connection_manager()
+    success = manager.delete_connection(connection_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    return {"success": True}
+
+
+@router.post("/connections/test")
+async def test_connection(conn: ConnectionTest):
+    """测试连接"""
+    from src.db.manager import get_connection_manager
+    manager = get_connection_manager()
+    return manager.test_connection(conn.model_dump())
 
 
 @router.post("/query")
 async def execute_query(req: QueryRequest):
     """执行 SQL 查询"""
-    return {"columns": [], "rows": [], "row_count": 0}
+    from src.db.manager import get_connection_manager
+    from sqlalchemy import text
+    import time
+
+    manager = get_connection_manager()
+    conn = manager.get_connection(req.connection_id)
+
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    try:
+        # 获取连接字符串并执行查询
+        engine = conn.get_connection_string()
+        from sqlalchemy import create_engine
+
+        with create_engine(engine).connect() as db_conn:
+            start = time.time()
+            result = db_conn.execute(text(req.sql))
+            rows = result.fetchmany(req.limit)
+            columns = result.keys()
+            execution_time = int((time.time() - start) * 1000)
+
+            return {
+                "columns": list(columns),
+                "rows": [dict(zip(columns, row)) for row in rows],
+                "row_count": len(rows),
+                "execution_time_ms": execution_time
+            }
+    except Exception as e:
+        return {
+            "columns": [],
+            "rows": [],
+            "row_count": 0,
+            "execution_time_ms": 0,
+            "error": str(e)
+        }
