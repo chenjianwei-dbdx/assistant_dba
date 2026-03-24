@@ -1,0 +1,37 @@
+# ============================================================
+# Pre-commit Hooks 配置
+# ============================================================
+# 团队成员共享的 git hooks 配置
+# 安装: pre-commit install
+
+repos:
+  # Python 代码格式化和检查
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: debug-statements
+
+  # Ruff (Python linter + formatter)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.8
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Shell 检查
+  - repo: https://github.com/shellcheck-py/shellcheck-precommit
+    rev: v0.9.0
+    hooks:
+      - id: shellcheck
+
+ci:
+  autoupdate_schedule: weekly
+  autoupdate_commit_msg: "chore: update pre-commit hooks"
