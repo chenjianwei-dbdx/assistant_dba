@@ -84,6 +84,10 @@
 - [x] Dashboard监控仪表盘
 - [x] Monitor性能监控页面
 - [x] Query SQL执行页面
+- [x] 真实LLM集成（ChatService）
+- [x] 3个新DBA插件（BackupManager、PermissionManager、ConnectionPoolMonitor）
+- [x] pytest测试框架
+- [x] 前端API服务层
 
 ---
 
