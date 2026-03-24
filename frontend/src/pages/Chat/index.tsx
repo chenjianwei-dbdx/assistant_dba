@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Input, Button, Avatar } from 'antd'
+import { SendOutlined } from '@ant-design/icons'
 
 interface Message {
   id: string
@@ -13,6 +14,7 @@ export default function Chat() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const eventSourceRef = useRef<EventSource | null>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -36,10 +38,46 @@ export default function Chat() {
     setInput('')
     setLoading(true)
 
-    try {
-      // TODO: 调用后端 WebSocket 或 API
-      console.log('Sending:', input)
-    } finally {
+    // 添加一条空的助手消息用于流式更新
+    const assistantMessageId = (Date.now() + 1).toString()
+    setMessages((prev) => [...prev, {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date()
+    }])
+
+    // 使用 EventSource 进行流式请求
+    const encodedMessage = encodeURIComponent(input)
+    const eventSource = new EventSource(`/api/chat/stream?message=${encodedMessage}`)
+    eventSourceRef.current = eventSource
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.done) {
+          eventSource.close()
+          setLoading(false)
+        } else if (data.content) {
+          setMessages((prev) => {
+            const lastIndex = prev.length - 1
+            const updated = [...prev]
+            if (updated[lastIndex]?.role === 'assistant') {
+              updated[lastIndex] = {
+                ...updated[lastIndex],
+                content: updated[lastIndex].content + data.content
+              }
+            }
+            return updated
+          })
+        }
+      } catch (e) {
+        console.error('Parse error:', e)
+      }
+    }
+
+    eventSource.onerror = () => {
+      eventSource.close()
       setLoading(false)
     }
   }
@@ -52,43 +90,48 @@ export default function Chat() {
         {messages.length === 0 && (
           <div className="text-center text-gray-400 mt-20">
             <div className="text-4xl mb-2">🤖</div>
-            <div>Ask me anything about your database</div>
+            <div className="text-lg">Ask me anything about your database</div>
           </div>
         )}
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`flex gap-3 max-w-[70%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-              <Avatar className={msg.role === 'user' ? 'bg-blue-500' : 'bg-green-500'}>
+              <Avatar className={msg.role === 'user' ? 'bg-blue-500' : 'bg-gradient-to-br from-blue-500 to-purple-600'}>
                 {msg.role === 'user' ? 'U' : 'AI'}
               </Avatar>
-              <div className={`p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-500 text-white' : 'bg-white border'}`}>
-                {msg.content}
+              <div className={`p-4 rounded-2xl ${msg.role === 'user'
+                ? 'bg-blue-500 text-white rounded-tr-none'
+                : 'bg-white border shadow-sm rounded-tl-none'
+              }`}>
+                <div className="whitespace-pre-wrap">{msg.content}</div>
+                {msg.role === 'assistant' && msg.content === '' && loading && (
+                  <span className="inline-block animate-pulse">Thinking...</span>
+                )}
               </div>
             </div>
           </div>
         ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="flex gap-3">
-              <Avatar className="bg-green-500">AI</Avatar>
-              <div className="p-3 bg-white border rounded-lg">
-                Thinking...
-              </div>
-            </div>
-          </div>
-        )}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-3">
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onPressEnter={handleSend}
-          placeholder="Type your message..."
+          placeholder="Ask me about your database..."
           disabled={loading}
+          className="flex-1"
+          size="large"
         />
-        <Button type="primary" onClick={handleSend} loading={loading}>
+        <Button
+          type="primary"
+          icon={<SendOutlined />}
+          onClick={handleSend}
+          loading={loading}
+          size="large"
+          className="bg-blue-500"
+        >
           Send
         </Button>
       </div>
