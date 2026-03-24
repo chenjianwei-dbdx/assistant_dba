@@ -5,7 +5,8 @@ Chat API routes
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, AsyncGenerator
+from typing import Optional
+import asyncio
 import json
 
 router = APIRouter()
@@ -23,39 +24,64 @@ class ChatResponse(BaseModel):
     success: bool = True
 
 
-@router.post("/", response_model=ChatResponse)
+def get_chat_service():
+    """获取聊天服务（延迟导入避免循环依赖）"""
+    from src.core.llm import LLMClient
+    from src.core.service import ChatService
+    from src.config import get_config
+
+    config = get_config()
+    llm_client = LLMClient(config["llm"])
+    return ChatService(llm_client)
+
+
+@router.post("/")
 async def chat(request: ChatRequest):
     """发送聊天消息（非流式）"""
-    # TODO: 调用 LLM 和意图分析
-    return ChatResponse(
-        message="This is a placeholder response. Connect LLM to enable chat.",
-        session_id=request.session_id or "new-session",
-        tool_used=None
-    )
+    try:
+        service = get_chat_service()
+        result = service.process_message(request.message)
+
+        if result["type"] == "tool_result":
+            return ChatResponse(
+                message=str(result.get("output", result.get("error", "")),
+                session_id=request.session_id or "new-session",
+                tool_used=result.get("tool_name"),
+                success=result.get("success", True)
+            )
+        elif result["type"] == "param_clarification":
+            return ChatResponse(
+                message=result["message"],
+                session_id=request.session_id or "new-session",
+                tool_used=result.get("tool_name"),
+                success=True
+            )
+        else:
+            return ChatResponse(
+                message=result.get("message", "OK"),
+                session_id=request.session_id or "new-session"
+            )
+    except Exception as e:
+        return ChatResponse(
+            message=f"Error: {str(e)}",
+            session_id=request.session_id or "new-session",
+            success=False
+        )
 
 
 @router.get("/stream")
 async def chat_stream(message: str, session_id: Optional[str] = None):
     """流式聊天"""
 
-    async def generate() -> AsyncGenerator[str, None]:
-        # TODO: 实现真实的 LLM 调用和流式输出
-        # 目前返回模拟流式数据
-        import asyncio
-
-        # 模拟流式输出
-        response_text = "你好！我是一个数据库助手。你可以问我关于数据库的问题，比如：\n\n"
-        response_text += "1. 查询数据库状态\n"
-        response_text += "2. 分析慢查询\n"
-        response_text += "3. 查看索引健康\n"
-        response_text += "4. 执行 SQL 查询\n\n"
-        response_text += "请告诉我你需要什么帮助？"
-
-        for char in response_text:
-            yield f"data: {json.dumps({'content': char})}\n\n"
-            await asyncio.sleep(0.02)  # 模拟打字效果
-
-        yield f"data: {json.dumps({'done': True})}\n\n"
+    async def generate():
+        try:
+            service = get_chat_service()
+            for chunk in service.chat_stream(message):
+                yield f"data: {chunk}\n\n"
+        except Exception as e:
+            error = json.dumps({"type": "error", "error": str(e)}, ensure_ascii=False)
+            yield f"data: {error}\n\n"
+        yield "data: {\"type\": \"done\"}\n\n"
 
     return StreamingResponse(
         generate(),
@@ -71,10 +97,4 @@ async def chat_stream(message: str, session_id: Optional[str] = None):
 @router.post("/tool")
 async def chat_with_tool(request: ChatRequest):
     """使用工具的聊天"""
-    # TODO: 实现完整的意图分析 + 工具调用流程
-    return ChatResponse(
-        message="Tool calling not yet implemented.",
-        session_id=request.session_id or "new-session",
-        tool_used=None,
-        success=False
-    )
+    return await chat(request)
