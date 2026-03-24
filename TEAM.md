@@ -71,21 +71,14 @@
 
 ## 成员已完成任务清单
 
-### 测试员A - 已完成任务
+### Owner/全部角色 - 已完成任务
 
-- [ ] （待填写）
-
-### 后端开发A - 已完成任务
-
-- [ ] （待填写）
-
-### 前端开发A - 已完成任务
-
-- [ ] （待填写）
-
-### 代码审核A - 已完成任务
-
-- [ ] （待填写）
+- [x] 初始化项目架构（React + Vite 前端，FastAPI 后端）
+- [x] 前端页面搭建（Dashboard, Query, Monitor, Connections, Chat）
+- [x] 后端核心模块（LLM客户端、意图分析、插件系统）
+- [x] 数据库连接管理（DBConnection、ConnectionManager）
+- [x] 3个DBA内置插件（QueryExecutor、SlowQueryAnalyzer、IndexAnalyzer）
+- [x] 修复 .gitignore 排除 node_modules
 
 ---
 
