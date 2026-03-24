@@ -79,6 +79,11 @@
 - [x] 数据库连接管理（DBConnection、ConnectionManager）
 - [x] 3个DBA内置插件（QueryExecutor、SlowQueryAnalyzer、IndexAnalyzer）
 - [x] 修复 .gitignore 排除 node_modules
+- [x] Chat页面流式输出（SSE）
+- [x] Connections完整CRUD
+- [x] Dashboard监控仪表盘
+- [x] Monitor性能监控页面
+- [x] Query SQL执行页面
 
 ---
 
