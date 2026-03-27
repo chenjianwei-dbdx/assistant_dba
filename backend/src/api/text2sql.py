@@ -62,6 +62,40 @@ async def generate_sql(req: Text2SQLRequest) -> Text2SQLResponse:
     """Text2SQL：生成 SQL"""
     try:
         schema_loader = get_schema_loader()
+
+        # 特殊处理：元查询（查询数据库结构）
+        meta_patterns = [
+            '有哪些表', '所有表', '表有哪些', '查询表', 'show tables',
+            '有什么表', '库里有', '数据库结构', '所有表名',
+            '表的列表', 'list tables'
+        ]
+        is_meta_query = any(p in req.query.lower() for p in meta_patterns)
+
+        if is_meta_query:
+            # 直接返回表列表，不生成 SQL
+            all_tables = schema_loader.get_all_tables()
+            tables_with_desc = []
+            for table_name in all_tables:
+                config = schema_loader.get_table_config(table_name)
+                if config:
+                    tables_with_desc.append({
+                        "name": table_name,
+                        "module": config.get('module', ''),
+                        "description": config.get('description', '')
+                    })
+
+            return Text2SQLResponse(
+                success=True,
+                data={
+                    "sql": "",  # 无需 SQL
+                    "explanation": f"数据库中共有 {len(tables_with_desc)} 张表，均为 ERP 业务表",
+                    "affected_tables": all_tables,
+                    "is_meta_query": True,
+                    "tables": tables_with_desc,
+                    "estimated_rows": len(tables_with_desc)
+                }
+            )
+
         introspector = get_introspector()
         llm_client = get_llm_client()
 

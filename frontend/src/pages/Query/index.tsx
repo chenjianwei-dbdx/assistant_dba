@@ -30,7 +30,7 @@ export default function Query() {
   // AI 辅助相关状态
   const [aiMode, setAiMode] = useState(false)
   const [userQuery, setUserQuery] = useState('')
-  const [aiStatus, setAiStatus] = useState<AiStatus>('idle')
+  const [aiStatus, setAiStatus] = useState<AiStatus>('idle' as AiStatus)
   const [generatedSql, setGeneratedSql] = useState('')
   const [aiExplanation, setAiExplanation] = useState('')
   const [aiSummary, setAiSummary] = useState('')
@@ -110,6 +110,22 @@ export default function Query() {
       })
       const data = await res.json()
       if (data.success && data.data) {
+        // 处理元查询（查询表列表等）
+        if (data.data.is_meta_query && data.data.tables) {
+          setAiExplanation(data.data.explanation || '')
+          setAiStatus('completed')
+          // 直接显示表列表
+          setQueryResult({
+            columns: ['表名', '模块', '描述'],
+            rows: data.data.tables.map((t: any, i: number) => ({
+              key: String(i),
+              '表名': t.name,
+              '模块': t.module,
+              '描述': t.description
+            }))
+          })
+          return
+        }
         setGeneratedSql(data.data.sql)
         setAiExplanation(data.data.explanation || '')
         setAiStatus('generated')
@@ -168,6 +184,9 @@ export default function Query() {
     setAiSummary('')
     setErrorMessage('')
   }
+
+  // Helper to check if AI is generating
+  const isAiGenerating = (): boolean => aiStatus === 'generating'
 
   const columns: ColumnsType<QueryResult> = queryResult
     ? queryResult.columns.map((col) => ({
@@ -269,7 +288,7 @@ export default function Query() {
                   type="primary"
                   icon={<RobotOutlined />}
                   onClick={handleAiGenerate}
-                  loading={aiStatus === 'generating'}
+                  loading={isAiGenerating()}
                   className="bg-blue-500"
                 >
                   生成 SQL
