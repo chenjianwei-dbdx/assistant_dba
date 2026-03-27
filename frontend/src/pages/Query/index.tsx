@@ -187,6 +187,7 @@ export default function Query() {
 
   // Helper to check if AI is generating
   const isAiGenerating = (): boolean => aiStatus === 'generating'
+  const isAiCompleted = (): boolean => aiStatus === 'completed'
 
   const columns: ColumnsType<QueryResult> = queryResult
     ? queryResult.columns.map((col) => ({
@@ -221,6 +222,30 @@ export default function Query() {
               size="small"
               scroll={{ x: 800 }}
             />
+            {/* 继续对话输入框 */}
+            {aiMode && isAiCompleted() && (
+              <div className="border-t pt-4">
+                <div className="text-sm text-gray-500 mb-2">还有想法？继续追问：</div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="例如：查询结果中销售额最高的是哪家客户？"
+                    value={userQuery}
+                    onChange={(e) => setUserQuery(e.target.value)}
+                    onPressEnter={handleAiGenerate}
+                    disabled={isAiGenerating()}
+                  />
+                  <Button
+                    type="primary"
+                    icon={<RobotOutlined />}
+                    onClick={handleAiGenerate}
+                    loading={isAiGenerating()}
+                    className="bg-blue-500"
+                  >
+                    继续
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-8 text-center text-gray-500">
