@@ -36,8 +36,13 @@ export default function Query() {
   const [aiSummary, setAiSummary] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
 
+  // 执行计划和历史
+  const [explainResult, setExplainResult] = useState('')
+  const [queryHistory, setQueryHistory] = useState<any[]>([])
+
   useEffect(() => {
     fetchConnections()
+    fetchHistory()
   }, [])
 
   const fetchConnections = async () => {
@@ -48,6 +53,52 @@ export default function Query() {
     } catch (e) {
       message.error('获取连接列表失败')
     }
+  }
+
+  const fetchHistory = async () => {
+    try {
+      const res = await fetch('/api/db/query/history')
+      const data = await res.json()
+      setQueryHistory(data.history || [])
+    } catch (e) {
+      console.error('获取历史失败')
+    }
+  }
+
+  const handleExplain = async () => {
+    if (!connectionId || !sql.trim()) {
+      message.warning('请输入 SQL 语句')
+      return
+    }
+    try {
+      const res = await fetch('/api/db/query/explain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection_id: connectionId, sql, limit: 1000 })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setExplainResult(data.plan || '')
+      } else {
+        message.error(data.error || 'EXPLAIN 失败')
+      }
+    } catch (e) {
+      message.error('EXPLAIN 执行失败')
+    }
+  }
+
+  const handleClearHistory = async () => {
+    try {
+      await fetch('/api/db/query/history', { method: 'DELETE' })
+      setQueryHistory([])
+      message.success('历史已清空')
+    } catch (e) {
+      message.error('清空历史失败')
+    }
+  }
+
+  const handleHistoryClick = (item: any) => {
+    setSql(item.sql)
   }
 
   const handleExecute = async () => {
@@ -258,15 +309,55 @@ export default function Query() {
       key: 'explain',
       label: '执行计划',
       children: (
-        <div className="p-4 text-gray-500">
-          点击"执行计划"按钮查看查询执行计划
+        <div className="p-4">
+          {sql.trim() ? (
+            <div className="space-y-4">
+              <Button onClick={handleExplain} icon={<ThunderboltOutlined />}>
+                生成执行计划
+              </Button>
+              {explainResult && (
+                <pre className="bg-gray-100 p-4 rounded text-sm overflow-auto whitespace-pre-wrap font-mono">
+                  {explainResult}
+                </pre>
+              )}
+            </div>
+          ) : (
+            <div className="text-gray-500">请先输入 SQL 语句</div>
+          )}
         </div>
       )
     },
     {
       key: 'history',
       label: '历史记录',
-      children: <div className="p-4 text-gray-500">查询历史将显示在这里</div>
+      children: (
+        <div className="p-4">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-gray-500">{queryHistory.length} 条记录</span>
+            {queryHistory.length > 0 && (
+              <Button size="small" onClick={handleClearHistory}>清空</Button>
+            )}
+          </div>
+          {queryHistory.length > 0 ? (
+            <div className="space-y-2">
+              {queryHistory.map((item: any) => (
+                <div
+                  key={item.id}
+                  className="p-3 bg-gray-50 rounded cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleHistoryClick(item)}
+                >
+                  <div className="font-mono text-sm truncate">{item.sql}</div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    {item.row_count} 行 | {item.execution_time_ms}ms | {item.created_at}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-gray-500">暂无查询历史</div>
+          )}
+        </div>
+      )
     }
   ]
 
