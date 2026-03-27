@@ -50,13 +50,11 @@ def get_schema_loader() -> SchemaLoader:
 
 def get_introspector() -> SchemaIntrospector:
     """获取 Schema Introspector"""
-    return SchemaIntrospector(
-        host='127.0.0.1',
-        port=5432,
-        database='erp_simulation',
-        username='cjwdsg',
-        password=''
+    from sqlalchemy import create_engine
+    engine = create_engine(
+        "postgresql://cjwdsg:@127.0.0.1:5432/erp_simulation"
     )
+    return SchemaIntrospector(engine)
 
 
 @router.post("/text2sql")

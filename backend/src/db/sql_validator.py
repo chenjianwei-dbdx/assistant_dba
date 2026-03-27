@@ -4,7 +4,7 @@ SQL 验证层：语法验证、表名验证、危险操作检查
 """
 import re
 from typing import List, Set, Tuple, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 try:
     import sqlparse
     HAS_SQLPARSE = True
@@ -17,7 +17,7 @@ class ValidationResult:
     """验证结果"""
     valid: bool
     error: Optional[str] = None
-    extracted_tables: List[str] = []
+    extracted_tables: List[str] = field(default_factory=list)
 
     @classmethod
     def success(cls, tables: List[str] = None) -> 'ValidationResult':
