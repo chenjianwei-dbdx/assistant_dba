@@ -1,0 +1,253 @@
+{
+  "version": "1.0",
+  "description": "ERP 仿真数据库 Schema 配置",
+  "modules": ["HR", "CRM", "SCM", "INV", "PUR", "SAL", "FIN", "PRO", "MRP", "SYS", "WMS"],
+  "tables": [
+    {
+      "name": "hr_departments",
+      "module": "HR",
+      "tags": ["部门", "组织架构", "人力资源", "公司结构", "管理层级"],
+      "description": "存储公司部门组织架构信息，包括部门名称、编码、上级部门等"
+    },
+    {
+      "name": "hr_positions",
+      "module": "HR",
+      "tags": ["岗位", "职位", "职级", "人力资源", "职务"],
+      "description": "定义公司内部所有岗位职位信息，包含岗位名称、职级、所属部门等"
+    },
+    {
+      "name": "hr_employees",
+      "module": "HR",
+      "tags": ["员工", "人员", "入职", "个人信息", "人力资源"],
+      "description": "管理员工完整档案信息，包括基本信息、联系方式、所属部门岗位等"
+    },
+    {
+      "name": "hr_attendance",
+      "module": "HR",
+      "tags": ["考勤", "打卡", "出勤", "请假", "出勤记录"],
+      "description": "记录员工日常考勤打卡数据，包含上班打卡、下班打卡、请假外出等"
+    },
+    {
+      "name": "hr_salary",
+      "module": "HR",
+      "tags": ["工资", "薪酬", "薪资", "奖金", "个税"],
+      "description": "管理员工薪资发放记录，包括基本工资、奖金、扣款、个税等财务信息"
+    },
+    {
+      "name": "crm_customers",
+      "module": "CRM",
+      "tags": ["客户", "客户管理", "客户档案", "营销", "商机"],
+      "description": "存储客户基本信息和档案，用于客户关系管理和营销跟进"
+    },
+    {
+      "name": "crm_contacts",
+      "module": "CRM",
+      "tags": ["联系人", "客户联系", "联系方式", "商务沟通", "交往记录"],
+      "description": "记录客户的联系人信息及沟通交往历史，便于销售跟进"
+    },
+    {
+      "name": "crm_customer_addresses",
+      "module": "CRM",
+      "tags": ["客户地址", "收货地址", "地址管理", "物流", "配送"],
+      "description": "管理客户的多条收货地址信息，用于订单配送和物流管理"
+    },
+    {
+      "name": "scm_suppliers",
+      "module": "SCM",
+      "tags": ["供应商", "供应链", "供货商", "采购", "商务合作"],
+      "description": "维护供应商基本信息和企业资质，建立供应链合作伙伴档案"
+    },
+    {
+      "name": "scm_supplier_contacts",
+      "module": "SCM",
+      "tags": ["供应商联系人", "商务联系", "对接人", "采购沟通", "供应"],
+      "description": "记录供应商的对接联系人信息，便于采购业务沟通协作"
+    },
+    {
+      "name": "inv_warehouses",
+      "module": "INV",
+      "tags": ["仓库", "仓储", "库房", "库存组织", "物流中心"],
+      "description": "定义公司所有仓库信息，包括仓库名称、地址、负责人、库容等"
+    },
+    {
+      "name": "inv_locations",
+      "module": "INV",
+      "tags": ["库位", "货架", "库位管理", "存储位置", "上架"],
+      "description": "管理仓库内库位货架信息，用于库存商品的精确存放定位"
+    },
+    {
+      "name": "inv_product_categories",
+      "module": "INV",
+      "tags": ["商品分类", "产品类别", "类目管理", "品类", "分类编码"],
+      "description": "建立商品和产品分类体系，支持多级分类便于库存和采购管理"
+    },
+    {
+      "name": "inv_products",
+      "module": "INV",
+      "tags": ["产品", "商品", "物料", "货品", "SKU"],
+      "description": "维护产品商品的基础信息，包括编码、名称、规格、单位、参考价格等"
+    },
+    {
+      "name": "inv_inventory",
+      "module": "INV",
+      "tags": ["库存", "实时库存", "可用库存", "库存余额", "库存查询"],
+      "description": "记录各仓库各商品的实时库存余额，支持多仓库库存统一管理"
+    },
+    {
+      "name": "inv_inventory_transactions",
+      "module": "INV",
+      "tags": ["库存流水", "出入库记录", "库存变动", "交易明细", "台账"],
+      "description": "记录所有库存变动业务单据，生成库存流水台账便于追溯查询"
+    },
+    {
+      "name": "pur_purchase_orders",
+      "module": "PUR",
+      "tags": ["采购订单", "PO", "采购合同", "请购", "供应商订单"],
+      "description": "创建和管理采购订单，记录采购业务的主单据信息"
+    },
+    {
+      "name": "pur_purchase_order_items",
+      "module": "PUR",
+      "tags": ["采购明细", "订单行", "采购物料", "订单详情", "商品明细"],
+      "description": "存储采购订单的明细行项目，包含商品、数量、单价、交期等"
+    },
+    {
+      "name": "pur_goods_receipts",
+      "module": "PUR",
+      "tags": ["收货单", "到货验收", "入库通知", "送货单", "采购入库"],
+      "description": "记录采购货物的到货验收收货单据，关联采购订单使用"
+    },
+    {
+      "name": "pur_goods_receipt_items",
+      "module": "PUR",
+      "tags": ["收货明细", "验收明细", "到货明细", "入库明细", "采购详情"],
+      "description": "存储收货单的明细行，记录每种商品的到货数量和验收结果"
+    },
+    {
+      "name": "sal_orders",
+      "module": "SAL",
+      "tags": ["销售订单", "SO", "订单", "客户订单", "销售合同"],
+      "description": "创建和管理销售订单，记录销售业务的主单据信息"
+    },
+    {
+      "name": "sal_order_items",
+      "module": "SAL",
+      "tags": ["销售明细", "订单行", "商品明细", "订单详情", "销售物料"],
+      "description": "存储销售订单的明细行，包含商品、数量、单价、折扣等"
+    },
+    {
+      "name": "sal_deliveries",
+      "module": "SAL",
+      "tags": ["发货单", "送货单", "出库单", "物流配送", "交付"],
+      "description": "记录销售发货配送单据，关联销售订单并触发库存出库"
+    },
+    {
+      "name": "sal_delivery_items",
+      "module": "SAL",
+      "tags": ["发货明细", "出库明细", "配送明细", "送货详情", "发货行"],
+      "description": "存储发货单的明细行，记录每种商品的实际发货数量"
+    },
+    {
+      "name": "fin_accounts",
+      "module": "FIN",
+      "tags": ["账户", "财务账户", "银行账户", "资金账户", "会计科目"],
+      "description": "维护公司财务账户信息，包括银行账户、现金账户、往来账户等"
+    },
+    {
+      "name": "fin_vouchers",
+      "module": "FIN",
+      "tags": ["凭证", "会计凭证", "记账凭证", "财务单据", "记账"],
+      "description": "创建和管理会计凭证，记录财务收支和账务处理业务"
+    },
+    {
+      "name": "fin_voucher_details",
+      "module": "FIN",
+      "tags": ["凭证分录", "明细账", "借贷明细", "科目明细", "财务明细"],
+      "description": "存储凭证的借贷分录明细，每条凭证包含多条分录明细"
+    },
+    {
+      "name": "fin_journal_entries",
+      "module": "FIN",
+      "tags": ["日记账", "分录", "交易记录", "资金流水", "账务日志"],
+      "description": "记录所有资金收付日记账，形成财务流水日志便于对账审计"
+    },
+    {
+      "name": "pro_projects",
+      "module": "PRO",
+      "tags": ["项目", "项目管理", "工程", "项目档案", "项目计划"],
+      "description": "创建和管理项目信息，包括项目名称、负责人、开始结束时间、预算等"
+    },
+    {
+      "name": "pro_project_tasks",
+      "module": "PRO",
+      "tags": ["任务", "项目任务", "工作分解", "WBS", "任务分配"],
+      "description": "分解项目工作任务，定义任务名称、负责人、计划工时、进度等"
+    },
+    {
+      "name": "pro_milestones",
+      "module": "PRO",
+      "tags": ["里程碑", "项目阶段", "节点", "交付物", "项目验收"],
+      "description": "定义项目关键里程碑节点，标记项目重要阶段交付成果"
+    },
+    {
+      "name": "mrp_production_orders",
+      "module": "MRP",
+      "tags": ["生产订单", "工单", "生产计划", "制造令", "生产任务"],
+      "description": "下达和管理生产订单，记录生产产品、数量、开工完工时间等"
+    },
+    {
+      "name": "mrp_bom",
+      "module": "MRP",
+      "tags": ["物料清单", "BOM", "配方", "产品结构", "物料配方"],
+      "description": "维护产品的物料清单结构，定义产品组成物料及用量比例"
+    },
+    {
+      "name": "mrp_work_orders",
+      "module": "MRP",
+      "tags": ["工单", "作业工单", "生产工单", "工序", "作业指令"],
+      "description": "创建生产作业工单，指派工序、班组、设备等生产资源"
+    },
+    {
+      "name": "sys_users",
+      "module": "SYS",
+      "tags": ["用户", "系统用户", "登录账号", "账户管理", "认证"],
+      "description": "管理系统用户账户信息，包括用户名、密码、邮箱、手机号等"
+    },
+    {
+      "name": "sys_roles",
+      "module": "SYS",
+      "tags": ["角色", "系统角色", "角色定义", "权限组", "岗位角色"],
+      "description": "定义系统角色，用于用户权限分组和访问控制管理"
+    },
+    {
+      "name": "sys_user_roles",
+      "module": "SYS",
+      "tags": ["用户角色", "角色分配", "用户权限", "人员角色", "关联表"],
+      "description": "建立用户与角色的多对多关联关系，实现灵活的权限分配"
+    },
+    {
+      "name": "sys_permissions",
+      "module": "SYS",
+      "tags": ["权限", "系统权限", "操作权限", "功能权限", "资源权限"],
+      "description": "定义系统细粒度权限，控制用户对具体功能菜单和数据资源的访问"
+    },
+    {
+      "name": "sys_role_permissions",
+      "module": "SYS",
+      "tags": ["角色权限", "权限配置", "权限授予", "角色权限分配", "关联表"],
+      "description": "建立角色与权限的多对多关联，批量配置角色拥有的权限集合"
+    },
+    {
+      "name": "sys_audit_log",
+      "module": "SYS",
+      "tags": ["审计日志", "操作日志", "系统日志", "安全日志", "行为日志"],
+      "description": "记录用户在系统中的所有操作行为，用于安全审计和问题追溯"
+    },
+    {
+      "name": "wms_employee_schedules",
+      "module": "WMS",
+      "tags": ["排班", "员工排班", "考勤排班", "轮班", "班次管理"],
+      "description": "管理仓库员工的排班计划，记录员工班次和工作时间安排"
+    }
+  ]
+}
