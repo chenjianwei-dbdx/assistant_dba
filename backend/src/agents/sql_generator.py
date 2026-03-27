@@ -67,13 +67,21 @@ SQL: <SQL 语句>
         """解析 LLM 返回的 SQL 和解释"""
         response = response.strip()
 
+        # 移除 markdown 代码块标记
+        response = re.sub(r'```sql\s*', '', response)
+        response = re.sub(r'```\s*', '', response)
+
+        # 提取 SQL 部分
         sql_match = re.search(r'SQL:\s*(.+?)(?=解释:|$)', response, re.DOTALL | re.IGNORECASE)
         sql = sql_match.group(1).strip() if sql_match else ""
 
+        # 提取解释部分
         exp_match = re.search(r'解释:\s*(.+?)(?=$)', response, re.DOTALL | re.IGNORECASE)
         explanation = exp_match.group(1).strip() if exp_match else ""
 
-        sql = sql.strip()
+        # 清理 SQL 中的多余空白和换行
+        sql = ' '.join(sql.split())
+
         if sql and not sql.endswith(';'):
             sql = sql + ';'
 
