@@ -113,6 +113,7 @@ def _load_single_tool(tool_config: Dict, registry: ToolRegistry) -> None:
     category = tool_config.get("category", "general")
     parameters = tool_config.get("parameters", [])
     script_path = tool_config.get("script_path")
+    handler = tool_config.get("handler")
     timeout = tool_config.get("timeout", 30)
 
     # 创建工具定义
@@ -129,6 +130,9 @@ def _load_single_tool(tool_config: Dict, registry: ToolRegistry) -> None:
     if script_path:
         script_tool = ScriptToolRunner(definition)
         registry.register(script_tool)
+
+    # Handler 类型的工具（如 sql_query）需要单独处理
+    # 这类工具在 main.py 或 services 中通过 init_handlers() 初始化
 
 
 class ScriptToolRunner:

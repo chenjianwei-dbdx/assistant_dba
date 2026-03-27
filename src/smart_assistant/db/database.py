@@ -1,6 +1,6 @@
 """
 数据库连接模块
-支持 SQLite 和 MySQL，通过配置切换
+支持 SQLite、MySQL 和 PostgreSQL，通过配置切换
 """
 import os
 from pathlib import Path
@@ -40,6 +40,8 @@ class Database:
             self._init_sqlite(db_config)
         elif db_type == "mysql":
             self._init_mysql(db_config)
+        elif db_type == "postgresql":
+            self._init_postgresql(db_config)
         else:
             raise ValueError(f"Unsupported database type: {db_type}")
 
@@ -77,6 +79,23 @@ class Database:
             f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
             f"?charset={charset}"
         )
+
+        self._engine = create_engine(
+            db_url,
+            pool_pre_ping=True,
+            pool_recycle=3600,
+            echo=False
+        )
+
+    def _init_postgresql(self, db_config: dict):
+        """初始化 PostgreSQL"""
+        host = db_config.get("pg_host", "localhost")
+        port = db_config.get("pg_port", 5432)
+        username = db_config.get("pg_username", "postgres")
+        password = db_config.get("pg_password", "")
+        database = db_config.get("pg_database", "smart_assistant")
+
+        db_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
 
         self._engine = create_engine(
             db_url,

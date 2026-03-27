@@ -22,6 +22,8 @@ from smart_assistant.db.models import Conversation, Message, User
 from smart_assistant.llm.client import LLMClient
 from smart_assistant.tools.registry import get_registry
 from smart_assistant.tools.loader import load_tools_from_config
+from smart_assistant.tools.sql_query import SQLQueryTool
+from smart_assistant.db.schema_introspector import SchemaIntrospector
 from smart_assistant.services.intent import IntentService
 from smart_assistant.services.execution import ExecutionService
 from smart_assistant.services.conversation import ConversationService
@@ -53,6 +55,22 @@ def init_services():
     # 初始化 LLM 客户端
     llm_config = config.llm
     llm_client = LLMClient(llm_config)
+
+    # 初始化 SQL Query 工具（如果配置了 PostgreSQL）
+    db_config = config.database
+    if db_config.get("type") == "postgresql":
+        try:
+            schema_introspector = SchemaIntrospector(
+                host=db_config.get("pg_host", "localhost"),
+                port=db_config.get("pg_port", 5432),
+                database=db_config.get("pg_database", "ai_intel"),
+                username=db_config.get("pg_username", "postgres"),
+                password=db_config.get("pg_password", "")
+            )
+            sql_query_tool = SQLQueryTool(llm_client, schema_introspector)
+            tool_registry.register(sql_query_tool)
+        except Exception as e:
+            print(f"Warning: Failed to initialize SQL query tool: {e}")
 
     # 初始化服务
     intent_service = IntentService(llm_client, tool_registry)

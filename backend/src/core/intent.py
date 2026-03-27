@@ -41,6 +41,8 @@ class IntentAnalyzer:
             )
             return self._normalize_result(response)
         except Exception as e:
+            import logging
+            logging.warning(f"Intent analysis failed: {e}, falling back to qa")
             return {
                 "intent": "qa",
                 "tool_name": None,

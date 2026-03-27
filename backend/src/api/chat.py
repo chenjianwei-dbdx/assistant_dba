@@ -44,7 +44,7 @@ async def chat(request: ChatRequest):
 
         if result["type"] == "tool_result":
             return ChatResponse(
-                message=str(result.get("output", result.get("error", "")),
+                message=str(result.get("output", result.get("error", ""))),
                 session_id=request.session_id or "new-session",
                 tool_used=result.get("tool_name"),
                 success=result.get("success", True)

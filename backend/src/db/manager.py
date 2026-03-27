@@ -12,19 +12,58 @@ from .models import DBConnection, Base
 class ConnectionManager:
     """连接管理器"""
 
-    def __init__(self, db_path: str = "data/connections.db"):
-        self.db_path = db_path
+    def __init__(self, config: dict = None):
+        self.config = config or {}
+        self.db_type = self.config.get("type", "sqlite")
         self.engine = None
         self.SessionLocal = None
         self._init_db()
+        # 初始化默认 PostgreSQL 连接
+        self._init_default_connection()
+
+    def _init_default_connection(self):
+        """初始化默认 PostgreSQL 连接（如果不存在）"""
+        session = self.get_session()
+        try:
+            # 检查是否已存在 erp_simulation 连接
+            existing = session.query(DBConnection).filter_by(name="ERP仿真数据库").first()
+            if not existing:
+                # 创建默认连接
+                default_conn = DBConnection(
+                    id=str(uuid.uuid4()),
+                    name="ERP仿真数据库",
+                    db_type="postgresql",
+                    host="127.0.0.1",
+                    port=5432,
+                    database="erp_simulation",
+                    username="cjwdsg",
+                    password="",
+                    charset="utf8"
+                )
+                session.add(default_conn)
+                session.commit()
+        finally:
+            session.close()
 
     def _init_db(self):
         """初始化数据库"""
-        # 确保目录存在
-        import os
-        os.makedirs(os.path.dirname(self.db_path) if os.path.dirname(self.db_path) else ".", exist_ok=True)
+        if self.db_type == "postgresql":
+            # PostgreSQL 连接
+            self.engine = create_engine(
+                f"postgresql://{self.config.get('username', 'sa_admin')}:{self.config.get('password', '')}@{self.config.get('host', 'localhost')}:{self.config.get('port', 5432)}/{self.config.get('database', 'smart_assistant')}"
+            )
+        elif self.db_type == "mysql":
+            # MySQL 连接
+            self.engine = create_engine(
+                f"mysql+pymysql://{self.config.get('username', 'root')}:{self.config.get('password', '')}@{self.config.get('host', 'localhost')}:{self.config.get('port', 3306)}/{self.config.get('database', 'smart_assistant')}?charset={self.config.get('charset', 'utf8mb4')}"
+            )
+        else:
+            # SQLite 默认
+            db_path = self.config.get("db_path", "data/connections.db")
+            import os
+            os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else ".", exist_ok=True)
+            self.engine = create_engine(f"sqlite:///{db_path}")
 
-        self.engine = create_engine(f"sqlite:///{self.db_path}")
         Base.metadata.create_all(self.engine)
         self.SessionLocal = sessionmaker(bind=self.engine)
 
@@ -111,9 +150,9 @@ class ConnectionManager:
 _manager: Optional[ConnectionManager] = None
 
 
-def get_connection_manager(db_path: str = "data/connections.db") -> ConnectionManager:
+def get_connection_manager(config: dict = None) -> ConnectionManager:
     """获取连接管理器"""
     global _manager
     if _manager is None:
-        _manager = ConnectionManager(db_path)
+        _manager = ConnectionManager(config)
     return _manager

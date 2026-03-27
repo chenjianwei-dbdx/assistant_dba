@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Table, Button, Tag, Modal, Form, Input, Select, message } from 'antd'
-import { PlusOutlined, DeleteOutlined, EditOutlined, DatabaseOutlined } from '@ant-design/icons'
+import { Table, Button, Tag, Modal, Form, Input, Select, message, Space } from 'antd'
+import { PlusOutlined, DeleteOutlined, DatabaseOutlined, LinkOutlined, DisconnectOutlined } from '@ant-design/icons'
 
 const { Option } = Select
 
@@ -38,7 +38,7 @@ export default function Connections() {
       const data = await res.json()
       setConnections(data.connections || [])
     } catch (e) {
-      message.error('Failed to fetch connections')
+      message.error('获取连接列表失败')
     } finally {
       setLoading(false)
     }
@@ -52,13 +52,13 @@ export default function Connections() {
         body: JSON.stringify(values)
       })
       if (res.ok) {
-        message.success('Connection created')
+        message.success('连接创建成功')
         setModalVisible(false)
         form.resetFields()
         fetchConnections()
       }
     } catch (e) {
-      message.error('Failed to create connection')
+      message.error('创建连接失败')
     }
   }
 
@@ -66,17 +66,43 @@ export default function Connections() {
     try {
       const res = await fetch(`/api/db/connections/${id}`, { method: 'DELETE' })
       if (res.ok) {
-        message.success('Connection deleted')
+        message.success('连接已删除')
         fetchConnections()
       }
     } catch (e) {
-      message.error('Failed to delete connection')
+      message.error('删除连接失败')
+    }
+  }
+
+  const handleConnect = async (conn: Connection) => {
+    try {
+      const res = await fetch('/api/db/connections/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          db_type: conn.db_type,
+          host: conn.host,
+          port: conn.port,
+          database: conn.database,
+          username: conn.username,
+          password: ''
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        message.success(`已连接到 ${conn.name}`)
+        fetchConnections()
+      } else {
+        message.error(`连接失败: ${data.error}`)
+      }
+    } catch (e) {
+      message.error('连接失败')
     }
   }
 
   const columns = [
     {
-      title: 'Name',
+      title: '名称',
       dataIndex: 'name',
       key: 'name',
       render: (name: string) => (
@@ -86,31 +112,34 @@ export default function Connections() {
         </div>
       )
     },
-    { title: 'Type', dataIndex: 'db_type', key: 'db_type', render: (type: string) => <Tag color="blue">{type.toUpperCase()}</Tag> },
-    { title: 'Host', dataIndex: 'host', key: 'host' },
-    { title: 'Port', dataIndex: 'port', key: 'port' },
-    { title: 'Database', dataIndex: 'database', key: 'database' },
+    { title: '类型', dataIndex: 'db_type', key: 'db_type', render: (type: string) => <Tag color="blue">{type.toUpperCase()}</Tag> },
+    { title: '主机', dataIndex: 'host', key: 'host' },
+    { title: '端口', dataIndex: 'port', key: 'port' },
+    { title: '数据库', dataIndex: 'database', key: 'database' },
     {
-      title: 'Status',
+      title: '状态',
       dataIndex: 'is_active',
       key: 'status',
       render: (active: boolean) => (
-        <Tag color={active ? 'green' : 'red'}>{active ? 'Active' : 'Inactive'}</Tag>
+        <Tag color={active ? 'green' : 'red'}>{active ? '活跃' : '未连接'}</Tag>
       )
     },
     {
-      title: 'Actions',
+      title: '操作',
       key: 'actions',
       render: (_: any, record: Connection) => (
-        <div className="flex gap-2">
-          <Button size="small" icon={<EditOutlined />} />
+        <Space>
           <Button
             size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record.id)}
-          />
-        </div>
+            icon={record.is_active ? <DisconnectOutlined /> : <LinkOutlined />}
+            onClick={() => handleConnect(record)}
+            type={record.is_active ? 'default' : 'primary'}
+            className={record.is_active ? '' : 'bg-blue-500'}
+          >
+            {record.is_active ? '断开' : '连接'}
+          </Button>
+          <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
+        </Space>
       )
     }
   ]
@@ -119,8 +148,8 @@ export default function Connections() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold m-0">Database Connections</h1>
-          <p className="text-gray-500 mt-1">Manage your database connections</p>
+          <h1 className="text-2xl font-bold m-0">数据库连接</h1>
+          <p className="text-gray-500 mt-1">管理您的数据库连接</p>
         </div>
         <Button
           type="primary"
@@ -128,7 +157,7 @@ export default function Connections() {
           onClick={() => setModalVisible(true)}
           className="bg-blue-500"
         >
-          Add Connection
+          添加连接
         </Button>
       </div>
 
@@ -142,41 +171,44 @@ export default function Connections() {
       />
 
       <Modal
-        title="Add Database Connection"
+        title="添加数据库连接"
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}
       >
         <Form form={form} layout="vertical" onFinish={handleAdd}>
-          <Form.Item name="name" label="Connection Name" rules={[{ required: true }]}>
-            <Input placeholder="MySQL Production" />
+          <Form.Item name="name" label="连接名称" rules={[{ required: true }]}>
+            <Input placeholder="生产环境 MySQL" />
           </Form.Item>
-          <Form.Item name="db_type" label="Database Type" initialValue="mysql">
-            <Select>
+          <Form.Item name="db_type" label="数据库类型" initialValue="postgresql">
+            <Select onChange={(v) => {
+              if (v === 'postgresql') form.setFieldValue('port', 5432)
+              else if (v === 'mysql') form.setFieldValue('port', 3306)
+            }}>
               {dbTypes.map((t) => (
                 <Option key={t.value} value={t.value}>{t.label}</Option>
               ))}
             </Select>
           </Form.Item>
-          <Form.Item name="host" label="Host" initialValue="localhost">
+          <Form.Item name="host" label="主机地址" initialValue="127.0.0.1">
             <Input />
           </Form.Item>
-          <Form.Item name="port" label="Port" initialValue={3306}>
+          <Form.Item name="port" label="端口" initialValue={5432}>
             <Input type="number" />
           </Form.Item>
-          <Form.Item name="database" label="Database" rules={[{ required: true }]}>
+          <Form.Item name="database" label="数据库名" rules={[{ required: true }]}>
             <Input placeholder="app_db" />
           </Form.Item>
-          <Form.Item name="username" label="Username">
+          <Form.Item name="username" label="用户名">
             <Input />
           </Form.Item>
-          <Form.Item name="password" label="Password">
+          <Form.Item name="password" label="密码">
             <Input.Password />
           </Form.Item>
           <Form.Item className="mb-0">
             <div className="flex gap-2 justify-end">
-              <Button onClick={() => setModalVisible(false)}>Cancel</Button>
-              <Button type="primary" htmlType="submit" className="bg-blue-500">Create</Button>
+              <Button onClick={() => setModalVisible(false)}>取消</Button>
+              <Button type="primary" htmlType="submit" className="bg-blue-500">创建</Button>
             </div>
           </Form.Item>
         </Form>

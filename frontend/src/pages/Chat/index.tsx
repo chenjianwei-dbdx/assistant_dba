@@ -55,10 +55,10 @@ export default function Chat() {
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        if (data.done) {
+        if (data.type === 'done') {
           eventSource.close()
           setLoading(false)
-        } else if (data.content) {
+        } else if (data.type === 'content' && data.content) {
           setMessages((prev) => {
             const lastIndex = prev.length - 1
             const updated = [...prev]
@@ -72,7 +72,7 @@ export default function Chat() {
           })
         }
       } catch (e) {
-        console.error('Parse error:', e)
+        console.error('解析错误:', e)
       }
     }
 
@@ -84,13 +84,13 @@ export default function Chat() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-180px)]">
-      <h1 className="text-2xl font-bold mb-4">AI Assistant</h1>
+      <h1 className="text-2xl font-bold mb-4">AI 助手</h1>
 
       <div className="flex-1 overflow-y-auto space-y-4 mb-4 p-4 bg-gray-50 rounded-lg">
         {messages.length === 0 && (
           <div className="text-center text-gray-400 mt-20">
             <div className="text-4xl mb-2">🤖</div>
-            <div className="text-lg">Ask me anything about your database</div>
+            <div className="text-lg">向我提问关于您的数据库的问题</div>
           </div>
         )}
         {messages.map((msg) => (
@@ -105,7 +105,7 @@ export default function Chat() {
               }`}>
                 <div className="whitespace-pre-wrap">{msg.content}</div>
                 {msg.role === 'assistant' && msg.content === '' && loading && (
-                  <span className="inline-block animate-pulse">Thinking...</span>
+                  <span className="inline-block animate-pulse">思考中...</span>
                 )}
               </div>
             </div>
@@ -119,7 +119,7 @@ export default function Chat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onPressEnter={handleSend}
-          placeholder="Ask me about your database..."
+          placeholder="输入您的问题..."
           disabled={loading}
           className="flex-1"
           size="large"
@@ -132,7 +132,7 @@ export default function Chat() {
           size="large"
           className="bg-blue-500"
         >
-          Send
+          发送
         </Button>
       </div>
     </div>

@@ -4,11 +4,11 @@ import { Layout as AntLayout, Menu } from 'antd'
 const { Header, Sider, Content } = AntLayout
 
 const menuItems = [
-  { key: '/dashboard', label: <Link to="/dashboard">Dashboard</Link> },
-  { key: '/query', label: <Link to="/query">SQL Query</Link> },
-  { key: '/monitor', label: <Link to="/monitor">Monitor</Link> },
-  { key: '/connections', label: <Link to="/connections">Connections</Link> },
-  { key: '/chat', label: <Link to="/chat">AI Assistant</Link> },
+  { key: '/dashboard', label: <Link to="/dashboard">控制台</Link> },
+  { key: '/query', label: <Link to="/query">SQL 查询</Link> },
+  { key: '/monitor', label: <Link to="/monitor">性能监控</Link> },
+  { key: '/connections', label: <Link to="/connections">数据库连接</Link> },
+  { key: '/chat', label: <Link to="/chat">AI 助手</Link> },
 ]
 
 export function Layout() {
@@ -17,7 +17,7 @@ export function Layout() {
   return (
     <AntLayout style={{ minHeight: '100vh' }}>
       <Header className="bg-gray-900 text-white flex items-center">
-        <div className="text-xl font-bold">DBA Assistant</div>
+        <div className="text-xl font-bold">DBA 智能助手</div>
       </Header>
       <AntLayout>
         <Sider width={200} className="bg-gray-100">

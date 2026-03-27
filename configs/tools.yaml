@@ -52,3 +52,18 @@ tools:
         description: 仓库路径，默认为当前目录
     script_path: scripts/git_status.sh
     timeout: 10
+
+  - name: sql_query
+    description: 将自然语言转换为 SQL 查询并执行，只支持 PostgreSQL 的 SELECT 查询
+    category: database
+    parameters:
+      - name: question
+        type: string
+        required: true
+        description: 用户用自然语言描述的查询需求
+      - name: schema_context
+        type: string
+        required: false
+        description: 可选的额外 schema 上下文
+    handler: "sql_query"
+    timeout: 60

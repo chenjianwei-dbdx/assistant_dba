@@ -36,11 +36,17 @@ class QueryRequest(BaseModel):
     limit: int = 1000
 
 
+def get_db_config():
+    """获取数据库配置"""
+    from src.config import get_config
+    return get_config().get("database", {})
+
+
 @router.get("/connections")
 async def list_connections():
     """获取所有连接"""
     from src.db.manager import get_connection_manager
-    manager = get_connection_manager()
+    manager = get_connection_manager(get_db_config())
     return {"connections": manager.list_connections()}
 
 
@@ -48,7 +54,7 @@ async def list_connections():
 async def create_connection(conn: ConnectionCreate):
     """创建新连接"""
     from src.db.manager import get_connection_manager
-    manager = get_connection_manager()
+    manager = get_connection_manager(get_db_config())
     result = manager.create_connection(conn.model_dump())
     return result.to_dict()
 
@@ -57,7 +63,7 @@ async def create_connection(conn: ConnectionCreate):
 async def delete_connection(connection_id: str):
     """删除连接"""
     from src.db.manager import get_connection_manager
-    manager = get_connection_manager()
+    manager = get_connection_manager(get_db_config())
     success = manager.delete_connection(connection_id)
     if not success:
         raise HTTPException(status_code=404, detail="Connection not found")
@@ -68,7 +74,7 @@ async def delete_connection(connection_id: str):
 async def test_connection(conn: ConnectionTest):
     """测试连接"""
     from src.db.manager import get_connection_manager
-    manager = get_connection_manager()
+    manager = get_connection_manager(get_db_config())
     return manager.test_connection(conn.model_dump())
 
 
@@ -79,7 +85,7 @@ async def execute_query(req: QueryRequest):
     from sqlalchemy import text
     import time
 
-    manager = get_connection_manager()
+    manager = get_connection_manager(get_db_config())
     conn = manager.get_connection(req.connection_id)
 
     if not conn:

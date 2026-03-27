@@ -15,6 +15,9 @@ class ChatService:
     def __init__(self, llm_client: LLMClient):
         self.llm_client = llm_client
         self.registry = get_registry()
+        # 注册所有内置插件
+        from ..plugins.builtin import register_all
+        register_all(self.registry)
         self.intent_analyzer = IntentAnalyzer(
             llm_client,
             self.registry.get_tools_prompt()

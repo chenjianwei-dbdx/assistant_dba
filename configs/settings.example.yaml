@@ -23,7 +23,7 @@ llm:
 # 数据库配置
 # 本地开发用 SQLite，内网部署改为 mysql
 database:
-  type: "sqlite"                 # 可选: sqlite, mysql
+  type: "sqlite"                 # 可选: sqlite, mysql, postgresql
   db_path: "data/smart_assistant.db"
 
   # MySQL 配置（type: mysql 时生效）
@@ -33,3 +33,10 @@ database:
   password: "YOUR_DB_PASSWORD_HERE"
   database: "smart_assistant"
   charset: "utf8mb4"
+
+  # PostgreSQL 配置（type: postgresql 时生效）
+  pg_host: "localhost"
+  pg_port: 5432
+  pg_username: "postgres"
+  pg_password: "YOUR_PG_PASSWORD_HERE"
+  pg_database: "ai_intel"

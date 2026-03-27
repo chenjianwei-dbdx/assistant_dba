@@ -60,6 +60,20 @@ class ExecutionService:
             result = tool.execute(**params)
             execution_time = int((time.time() - start_time) * 1000)
 
+            # 特殊处理 SQL Query 工具的结果
+            if tool_name == "sql_query":
+                output = self._format_sql_result(result)
+                return {
+                    "success": result.get("success", False),
+                    "output": output,
+                    "error": result.get("error", ""),
+                    "tool_name": tool_name,
+                    "execution_time_ms": execution_time,
+                    "sql": result.get("sql", ""),
+                    "row_count": result.get("row_count", 0),
+                    "columns": result.get("columns", [])
+                }
+
             return {
                 "success": result.get("success", False),
                 "output": result.get("output", result.get("stdout", "")),
@@ -76,6 +90,55 @@ class ExecutionService:
                 "tool_name": tool_name,
                 "execution_time_ms": int((time.time() - start_time) * 1000)
             }
+
+    def _format_sql_result(self, result: Dict) -> str:
+        """格式化 SQL 查询结果"""
+        if not result.get("success"):
+            return f"查询失败: {result.get('error', '未知错误')}\n\nSQL: {result.get('sql', '')}"
+
+        sql = result.get("sql", "")
+        columns = result.get("columns", [])
+        rows = result.get("results", [])
+        row_count = result.get("row_count", 0)
+        truncated = result.get("truncated", False)
+
+        lines = []
+        lines.append(f"**SQL 查询:**\n```sql\n{sql}\n```\n")
+        lines.append(f"**执行结果:** 返回 {row_count} 行")
+
+        if truncated:
+            lines.append(f"（结果被截断，仅显示前 {len(rows)} 行）")
+
+        if not rows:
+            return "\n".join(lines)
+
+        lines.append("")
+
+        # 构建表格
+        col_widths = [len(c) for c in columns]
+        for row in rows:
+            for i, val in enumerate(row):
+                val_str = str(val) if val is not None else "NULL"
+                col_widths[i] = max(col_widths[i], min(len(val_str), 50))
+
+        # 表头
+        header = " | ".join(c.ljust(col_widths[i]) for i, c in enumerate(columns))
+        separator = "-|-".join("-" * w for w in col_widths)
+
+        lines.append("| " + header + " |")
+        lines.append("| " + separator.replace("-", "-") + " |")
+
+        # 数据行（最多 20 行）
+        for row in rows[:20]:
+            row_vals = []
+            for i, val in enumerate(row):
+                val_str = str(val) if val is not None else "NULL"
+                if len(val_str) > 50:
+                    val_str = val_str[:47] + "..."
+                row_vals.append(val_str.ljust(col_widths[i]))
+            lines.append("| " + " | ".join(row_vals) + " |")
+
+        return "\n".join(lines)
 
     def validate_tool_exists(self, tool_name: str) -> bool:
         """
