@@ -348,19 +348,58 @@ llm_config = {
 - **行数限制** — 默认返回最多 1000 行
 - **高危操作拦截** — 包含 `DROP`、`TRUNCATE`、`ALTER` 等关键词直接拒绝
 
-### 7.2 错误处理
+### 7.2 SQL 验证层（必须实现）
 
-- LLM 生成失败 → 返回友好错误提示
-- SQL 语法错误 → 显示错误信息，允许用户修改
-- 执行超时 → 中断查询，提示优化建议
-- 连接失败 → 提示检查数据库连接
+在 LLM 生成 SQL 后、执行前，必须经过验证层：
+
+```python
+class SQLValidator:
+    def validate(self, sql: str, valid_tables: List[str]) -> ValidationResult:
+        # 1. 语法验证 - 使用 sqlparse 解析
+        if not self.validate_syntax(sql):
+            return ValidationResult(error="SQL 语法错误")
+
+        # 2. 表名验证 - 确保引用的表都存在
+        tables = self.extract_tables(sql)
+        for table in tables:
+            if table not in valid_tables:
+                return ValidationResult(error=f"表 {table} 不存在")
+
+        # 3. 危险操作检查
+        dangerous_patterns = ['DROP', 'TRUNCATE', 'ALTER', 'DELETE', 'INSERT', 'UPDATE', 'CREATE', 'GRANT']
+        for pattern in dangerous_patterns:
+            if re.search(r'\b' + pattern + r'\b', sql, re.IGNORECASE):
+                return ValidationResult(error=f"禁止的操作: {pattern}")
+
+        # 4. 列名验证（可选，如果 schema_loader 支持）
+        return ValidationResult(valid=True)
+```
+
+### 7.3 错误处理
+
+| 场景 | 处理方式 |
+|------|----------|
+| LLM 生成失败 | 返回"AI 生成失败，请重试"，记录错误日志 |
+| SQL 解析失败 | 显示"SQL 格式错误，请检查"，提供原始输出供用户修正 |
+| 表/列不存在 | 显示"SQL 引用了不存在的表/列"，列出可用选项 |
+| LLM 输出格式异常 | 尝试正则提取 SQL，超时则要求用户手动输入 |
+| 执行超时 | 终止查询，显示"查询超时（>30s），请优化条件" |
+| 连接失败 | 提示"数据库连接失败，请检查连接配置" |
+
+### 7.4 重试机制
+
+- LLM 调用失败时自动重试 2 次
+- 重试间隔 1 秒
+- 2 次失败后返回友好错误，不暴露内部细节
 
 ## 8. 文件清单
 
 | 文件 | 操作 | 说明 |
 |------|------|------|
-| `configs/erp_schema.json` | 新建 | 表结构配置 |
-| `backend/src/db/schema_loader.py` | 新建 | Schema 读取器 |
+| `configs/erp_schema.json` | 新建 | 表结构配置（表名、模块、标签） |
+| `backend/src/db/schema_loader.py` | 新建 | Schema 读取器（读 JSON + 补充 DB 字段） |
+| `backend/src/db/schema_introspector.py` | 已有 | 动态获取表字段信息 |
+| `backend/src/db/sql_validator.py` | 新建 | SQL 验证层（语法、表名、危险操作检查） |
 | `backend/src/agents/table_selector.py` | 新建 | Layer 1 表选择 |
 | `backend/src/agents/sql_generator.py` | 新建 | Layer 2 SQL 生成 |
 | `backend/src/agents/result_summarizer.py` | 新建 | Layer 3 结果摘要 |
@@ -372,6 +411,7 @@ llm_config = {
 ### Python
 - psycopg2-binary (已安装)
 - openai >= 1.0
+- sqlparse >= 0.4.0 (SQL 语法验证)
 
 ### Frontend
 - 复用现有 antd, react 依赖
