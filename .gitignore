@@ -40,3 +40,4 @@ Thumbs.db
 
 # Sensitive configs
 configs/settings.yaml
+.worktrees/
