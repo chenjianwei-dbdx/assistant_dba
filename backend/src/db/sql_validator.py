@@ -64,8 +64,8 @@ class SQLValidator:
     def __init__(self):
         pass
 
-    def validate(self, sql: str, valid_tables: List[str]) -> ValidationResult:
-        """验证 SQL"""
+    def validate(self, sql: str, valid_tables: List[str] = None) -> ValidationResult:
+        """验证 SQL（仅做语法和危险操作检查，不限制表名）"""
         if not sql or not sql.strip():
             return ValidationResult.failure("SQL 不能为空")
 
@@ -74,21 +74,12 @@ class SQLValidator:
         if not syntax_result[0]:
             return ValidationResult.failure(f"SQL 语法错误: {syntax_result[1]}")
 
-        # 2. 提取并验证表名
-        extracted_tables = self.extract_tables(sql)
-        for table in extracted_tables:
-            # 跳过系统表校验
-            if table in self.SYSTEM_TABLES or table.startswith('pg_') or table.startswith('information_schema.'):
-                continue
-            if table not in valid_tables:
-                return ValidationResult.failure(f"表 '{table}' 不存在或不在允许范围内")
-
-        # 3. 危险操作检查
+        # 2. 危险操作检查
         danger_result = self.check_dangerous_operations(sql)
         if not danger_result[0]:
             return ValidationResult.failure(f"禁止的操作: {danger_result[1]}")
 
-        return ValidationResult.success(extracted_tables)
+        return ValidationResult.success()
 
     def validate_syntax(self, sql: str) -> Tuple[bool, str]:
         """验证 SQL 语法"""
