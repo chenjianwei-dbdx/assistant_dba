@@ -31,6 +31,29 @@ class ValidationResult:
 class SQLValidator:
     """SQL 验证器"""
 
+    # 允许的系统表/视图（pg_ 和 pg_stat_ 前缀的系统表）
+    SYSTEM_TABLES = {
+        # pg_ 系统目录表
+        'pg_am', 'pg_attribute', 'pg_authid', 'pg_auth_members', 'pg_cast',
+        'pg_class', 'pg_constraint', 'pg_database', 'pg_depend', 'pg_description',
+        'pg_enum', 'pg_extension', 'pg_foreign_data_wrapper', 'pg_foreign_server',
+        'pg_index', 'pg_inherits', 'pg_language', 'pg_largeobject', 'pg_namespace',
+        'pg_opclass', 'pg_operator', 'pg_opfamily', 'pg_proc', 'pg_range',
+        'pg_rewrite', 'pg_settings', 'pg_shdepend', 'pg_shdescription', 'pg_statistic',
+        'pg_tablespace', 'pg_trigger', 'pg_type', 'pg_user_mapping',
+        # pg_stat_ 统计视图
+        'pg_stat_activity', 'pg_stat_bgwriter', 'pg_stat_database', 'pg_stat_gssapi',
+        'pg_stat_progress_vacuum', 'pg_stat_replication', 'pg_stat_slru', 'pg_stat_subscription',
+        'pg_stat_sys_tables', 'pg_stat_user_tables', 'pg_stat_user_indexes', 'pg_stat_statements',
+        'pg_stat_progress_cluster', 'pg_stat_progress_vacuum', 'pg_statio_user_tables',
+        'pg_statio_user_indexes', 'pg_statio_sys_tables', 'pg_statio_sys_indexes',
+        'pg_stat_archiver', 'pg_stat_wal_receiver', 'pg_replication_slots',
+        # information_schema
+        'information_schema.tables', 'information_schema.columns', 'information_schema.views',
+        'information_schema.routines', 'information_schema.table_constraints',
+        'information_schema.key_column_usage',
+    }
+
     # 危险操作关键词
     DANGEROUS_PATTERNS = [
         'DROP', 'TRUNCATE', 'ALTER', 'DELETE', 'INSERT', 'UPDATE',
@@ -54,6 +77,9 @@ class SQLValidator:
         # 2. 提取并验证表名
         extracted_tables = self.extract_tables(sql)
         for table in extracted_tables:
+            # 跳过系统表校验
+            if table in self.SYSTEM_TABLES or table.startswith('pg_') or table.startswith('information_schema.'):
+                continue
             if table not in valid_tables:
                 return ValidationResult.failure(f"表 '{table}' 不存在或不在允许范围内")
 
@@ -83,11 +109,11 @@ class SQLValidator:
     def extract_tables(self, sql: str) -> List[str]:
         """从 SQL 中提取表名"""
         tables = set()
-        patterns = [
-            r'\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*)',
-            r'\bJOIN\s+([a-zA-Z_][a-zA-Z0-9_]*)',
-            r'\bINTO\s+([a-zA-Z_][a-zA-Z0-9_]*)',
-        ]
+        # 支持 dotted 名称 (schema.table, information_schema.tables)
+        dotted_pattern = r'\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)'
+        single_pattern = r'\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*)'
+        join_pattern = r'\bJOIN\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)'
+        patterns = [dotted_pattern, single_pattern, join_pattern]
         sql_upper = sql.upper()
         for pattern in patterns:
             matches = re.findall(pattern, sql_upper, re.IGNORECASE)
