@@ -3,6 +3,7 @@ Performance Monitor API
 数据库性能监控端点
 """
 from fastapi import APIRouter
+from datetime import datetime
 import psycopg2
 import re
 
@@ -370,3 +371,32 @@ async def execute_sql(request: dict):
         }
     except Exception as e:
         return {"success": False, "error": f"执行失败: {str(e)}"}
+
+
+@router.post("/backup")
+async def create_backup(request: dict):
+    """创建数据库备份"""
+    from src.plugins.builtin.backup_manager import BackupManager
+
+    database = request.get("database", "erp_simulation")
+    backup_name = request.get("backup_name", f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+
+    try:
+        manager = BackupManager()
+        result = manager._create_backup(database, backup_name)
+        return result.to_dict()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/backup/list")
+async def list_backups():
+    """列出所有备份"""
+    from src.plugins.builtin.backup_manager import BackupManager
+
+    try:
+        manager = BackupManager()
+        result = manager._list_backups()
+        return result.to_dict()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
