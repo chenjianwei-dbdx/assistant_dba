@@ -4,6 +4,7 @@ Performance Monitor API
 """
 from fastapi import APIRouter
 import psycopg2
+import re
 
 from src.config import get_config
 
@@ -324,3 +325,48 @@ async def analyze_performance():
 
     except Exception as e:
         return {"success": False, "error": str(e), "suggestions": [], "analysis": ""}
+
+
+@router.post("/execute")
+async def execute_sql(request: dict):
+    """直接执行 SQL（用于执行 AI 建议的 SQL）"""
+    sql = request.get("sql", "").strip()
+    if not sql:
+        return {"success": False, "error": "SQL 不能为空"}
+
+    # 危险操作白名单（只允许这些操作）
+    ALLOWED_PATTERNS = [
+        r'^VACUUM\s',
+        r'^ANALYZE\s',
+        r'^REINDEX\s',
+        r'^CLUSTER\s',
+        r'^ALTER\s+TABLE.*SET\s*\(',
+    ]
+
+    # 检查是否是不允许的操作
+    sql_upper = sql.strip().upper()
+    if not any(re.match(p, sql_upper) for p in ALLOWED_PATTERNS):
+        # 检查是否有危险关键词
+        dangerous = ['DROP', 'DELETE', 'INSERT', 'UPDATE', 'TRUNCATE', 'CREATE', 'GRANT', 'REVOKE']
+        if any(kw in sql_upper for kw in dangerous):
+            return {"success": False, "error": f"禁止执行危险 SQL: {sql[:50]}..."}
+
+    try:
+        conn = get_db_connection()
+        conn.autocommit = True  # VACUUM 需要 autocommit
+        cur = conn.cursor()
+        cur.execute(sql)
+
+        # 获取影响行数
+        row_count = cur.rowcount if cur.rowcount >= 0 else 0
+
+        cur.close()
+        conn.close()
+
+        return {
+            "success": True,
+            "message": "SQL 执行成功",
+            "row_count": row_count
+        }
+    except Exception as e:
+        return {"success": False, "error": f"执行失败: {str(e)}"}

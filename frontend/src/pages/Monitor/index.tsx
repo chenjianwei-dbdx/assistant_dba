@@ -126,20 +126,16 @@ export default function Monitor() {
       onOk: async () => {
         setExecutingSql(sql)
         try {
-          const res = await fetch('/api/db/query', {
+          const res = await fetch('/api/monitor/execute', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              connection_id: 'default',
-              sql: sql,
-              limit: 10
-            })
+            body: JSON.stringify({ sql })
           })
           const data = await res.json()
-          if (data.error) {
-            message.error(`执行失败: ${data.error}`)
+          if (data.success) {
+            message.success(data.message || 'SQL 执行成功')
           } else {
-            message.success(`SQL 执行成功，影响行数: ${data.row_count || 0}`)
+            message.error(data.error || '执行失败')
           }
         } catch (e) {
           message.error('执行失败: 网络错误')
