@@ -17,11 +17,19 @@ interface TableStat {
   dead_rows: number
 }
 
+interface Suggestion {
+  priority: string
+  text: string
+}
+
 export default function Monitor() {
   const [loading, setLoading] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
   const [overview, setOverview] = useState<any>(null)
   const [tableStats, setTableStats] = useState<TableStat[]>([])
   const [errorMsg, setErrorMsg] = useState<string>('')
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [analysisText, setAnalysisText] = useState<string>('')
 
   useEffect(() => {
     fetchAllData()
@@ -79,6 +87,37 @@ export default function Monitor() {
       setErrorMsg('获取监控数据失败')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchAnalysis = async () => {
+    setAnalyzing(true)
+    setSuggestions([])
+    setAnalysisText('')
+    try {
+      const res = await fetch('/api/monitor/analyze')
+      const data = await res.json()
+      if (data.success) {
+        setSuggestions(data.suggestions || [])
+        setAnalysisText(data.analysis || '')
+      } else {
+        setSuggestions([{ priority: '错误', text: data.error || '分析失败' }])
+      }
+    } catch (e) {
+      setSuggestions([{ priority: '错误', text: 'AI 分析请求失败' }])
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case '紧急': return 'red'
+      case '严重': return 'red'
+      case '警告': return 'orange'
+      case '建议': return 'blue'
+      case '错误': return 'red'
+      default: return 'green'
     }
   }
 
@@ -152,21 +191,40 @@ export default function Monitor() {
         />
       </Card>
 
-      <Card title="优化建议" bordered>
-        <div className="space-y-2">
-          {overview && Number(overview.hit_rate) < 90 && (
-            <Tag color="red">警告: 缓存命中率低于 90%，建议增加 shared_buffers</Tag>
-          )}
-          {tableStats.filter(t => t.dead_rows > 100).length > 0 && (
-            <Tag color="orange">有些表死元组较多，建议执行 VACUUM</Tag>
-          )}
-          {tableStats.filter(t => Number(t.index_scans_ratio) < 50).length > 0 && (
-            <Tag color="orange">部分表索引扫描率偏低，考虑添加索引</Tag>
-          )}
-          {!errorMsg && tableStats.length === 0 && (
-            <Tag>暂无明显性能问题</Tag>
-          )}
-        </div>
+      <Card
+        title="AI 性能分析"
+        className="mb-6"
+        extra={
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={fetchAnalysis}
+            loading={analyzing}
+            disabled={loading}
+          >
+            重新分析
+          </Button>
+        }
+        loading={analyzing}
+      >
+        {analysisText ? (
+          <div className="space-y-3">
+            {suggestions.length > 0 ? (
+              suggestions.map((s, i) => (
+                <Tag key={i} color={getPriorityColor(s.priority)}>
+                  {s.text}
+                </Tag>
+              ))
+            ) : (
+              <div className="text-gray-600 whitespace-pre-wrap">{analysisText}</div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-4 text-gray-400">
+            <Button onClick={fetchAnalysis} loading={analyzing}>
+              点击进行 AI 性能分析
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   )

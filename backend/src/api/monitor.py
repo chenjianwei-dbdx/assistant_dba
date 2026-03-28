@@ -246,3 +246,81 @@ async def get_connection_stats():
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+@router.get("/analyze")
+async def analyze_performance():
+    """AI 分析数据库性能，生成优化建议"""
+    from src.core.performance_analyzer import PerformanceAnalyzer
+    from src.core.llm import LLMClient
+    from src.config import get_config
+
+    try:
+        config = get_config()
+        llm_client = LLMClient(config.get("llm", {}))
+        analyzer = PerformanceAnalyzer(llm_client)
+
+        # 收集数据
+        conn = get_db_connection()
+        cur = conn.cursor()
+        db_name = get_db_name()
+
+        # 获取概览数据
+        cur.execute("""
+            SELECT numbackends, xact_commit, xact_rollback, blks_hit, blks_read
+            FROM pg_stat_database WHERE datname = %s
+        """, (db_name,))
+        db_stats = cur.fetchone()
+
+        cur.execute("SELECT COUNT(*) FROM pg_stat_activity WHERE datname = %s", (db_name,))
+        conn_count = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active' AND datname = %s", (db_name,))
+        active_queries = cur.fetchone()[0]
+
+        block_hits = db_stats[3] if db_stats else 0
+        block_reads = db_stats[4] if db_stats else 0
+        hit_rate = "100"
+        if block_reads > 0:
+            hit_rate = f"{(block_hits / (block_hits + block_reads) * 100):.1f}"
+
+        overview = {
+            "connections": conn_count,
+            "active_queries": active_queries,
+            "hit_rate": hit_rate,
+            "commit": db_stats[1] if db_stats else 0,
+            "rollback": db_stats[2] if db_stats else 0,
+        }
+
+        # 获取表统计
+        cur.execute("""
+            SELECT schemaname, relname, seq_scan, seq_tup_read, idx_scan, idx_tup_fetch,
+                   n_tup_ins, n_tup_upd, n_tup_del, n_live_tup, n_dead_tup
+            FROM pg_stat_user_tables ORDER BY seq_scan DESC LIMIT 20
+        """)
+        table_stats = []
+        for row in cur.fetchall():
+            table_stats.append({
+                "schema": row[0],
+                "table": row[1],
+                "seq_scans": row[2],
+                "seq_rows_read": row[3],
+                "index_scans": row[4],
+                "index_rows_fetched": row[5],
+                "inserts": row[6],
+                "updates": row[7],
+                "deletes": row[8],
+                "live_rows": row[9],
+                "dead_rows": row[10]
+            })
+
+        cur.close()
+        conn.close()
+
+        # AI 分析
+        result = analyzer.analyze(overview, table_stats)
+
+        return result
+
+    except Exception as e:
+        return {"success": False, "error": str(e), "suggestions": [], "analysis": ""}
