@@ -1,9 +1,11 @@
 """
 Query Executor Plugin
-查询执行插件
+SQL 查询执行插件
 """
+import time
 from typing import Dict, Any
 from ..base import DBATool, ToolResult
+from src.db.connection import get_monitor_connection
 
 
 class QueryExecutor(DBATool):
@@ -23,8 +25,8 @@ class QueryExecutor(DBATool):
             {
                 "name": "connection_id",
                 "type": "string",
-                "required": True,
-                "description": "数据库连接 ID"
+                "required": False,
+                "description": "数据库连接 ID（可选，默认使用监控数据库）"
             },
             {
                 "name": "sql",
@@ -42,27 +44,40 @@ class QueryExecutor(DBATool):
         ]
 
     def execute(self, **kwargs) -> ToolResult:
-        connection_id = kwargs.get("connection_id", "")
         sql = kwargs.get("sql", "")
         limit = kwargs.get("limit", 1000)
 
         if not sql:
             return ToolResult(success=False, error="SQL 语句不能为空")
 
-        if not connection_id:
-            return ToolResult(success=False, error="连接 ID 不能为空")
+        # 简单危险操作检查
+        dangerous_keywords = ['DROP', 'TRUNCATE', 'DELETE', 'INSERT', 'UPDATE', 'CREATE', 'GRANT', 'REVOKE', 'ALTER']
+        sql_upper = sql.strip().upper()
+        if any(sql_upper.startswith(kw) or f' {kw} ' in sql_upper for kw in dangerous_keywords):
+            return ToolResult(success=False, error=f"禁止执行危险 SQL: {sql[:50]}...")
 
-        # TODO: 实际执行查询（需要连接管理）
-        # 这里返回模拟结果
-        return ToolResult(
-            success=True,
-            output={
-                "columns": ["id", "name", "created_at"],
-                "rows": [
-                    {"id": 1, "name": "示例数据", "created_at": "2024-01-01"}
-                ],
-                "row_count": 1,
-                "execution_time_ms": 125
-            },
-            metadata={"sql": sql[:100], "limit": limit}
-        )
+        try:
+            conn = get_monitor_connection()
+            cur = conn.cursor()
+
+            start_time = time.time()
+            cur.execute(sql)
+            columns = [desc[0] for desc in cur.description] if cur.description else []
+            rows = cur.fetchmany(limit)
+            execution_time_ms = int((time.time() - start_time) * 1000)
+
+            cur.close()
+            conn.close()
+
+            return ToolResult(
+                success=True,
+                output={
+                    "columns": columns,
+                    "rows": [dict(zip(columns, row)) for row in rows],
+                    "row_count": len(rows),
+                    "execution_time_ms": execution_time_ms
+                },
+                metadata={"sql": sql[:100], "limit": limit}
+            )
+        except Exception as e:
+            return ToolResult(success=False, error=f"查询失败: {str(e)}")
