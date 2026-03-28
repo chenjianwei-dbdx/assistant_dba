@@ -4,6 +4,8 @@ Performance Analyzer
 """
 from typing import Dict, Any, List
 from ..core.llm import LLMClient
+import json
+import re
 
 
 class PerformanceAnalyzer:
@@ -31,14 +33,14 @@ class PerformanceAnalyzer:
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3
             )
-            # 清理思考标签
-            import re
-            clean_analysis = re.sub(r'<think>[\s\S]*?</think>', '', response)
-            clean_analysis = re.sub(r'<think>.*$', '', clean_analysis, flags=re.MULTILINE).strip()
+
+            # 先尝试提取 JSON 部分
+            suggestions = self._extract_json_suggestions(response)
+            clean_analysis = self._clean_analysis_text(response)
 
             return {
                 "success": True,
-                "suggestions": self._parse_suggestions(clean_analysis),
+                "suggestions": suggestions,
                 "analysis": clean_analysis
             }
         except Exception as e:
@@ -48,6 +50,90 @@ class PerformanceAnalyzer:
                 "suggestions": [],
                 "analysis": ""
             }
+
+    def _extract_json_suggestions(self, response: str) -> List[Dict[str, str]]:
+        """从 AI 响应中提取结构化建议"""
+        # 移除思考标签
+        clean = re.sub(r'<think>[\s\S]*?</think>', '', response)
+        clean = re.sub(r'<think>.*$', '', clean, flags=re.MULTILINE)
+
+        # 尝试提取 JSON
+        json_match = re.search(r'```json\s*([\s\S]*?)\s*```', clean)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(1))
+                if isinstance(data, list):
+                    return data[:10]
+                elif isinstance(data, dict) and "suggestions" in data:
+                    return data["suggestions"][:10]
+            except json.JSONDecodeError:
+                pass
+
+        # 如果没有 JSON，从代码块提取 SQL 作为建议
+        return self._extract_sql_suggestions(clean)
+
+    def _extract_sql_suggestions(self, response: str) -> List[Dict[str, str]]:
+        """从 Markdown 中提取 SQL 语句作为建议"""
+        suggestions = []
+
+        # 从代码块中提取所有 SQL
+        sql_lines = []
+        code_blocks = re.findall(r'```(?:sql)?\s*([\s\S]*?)\s*```', response, re.IGNORECASE)
+        for block in code_blocks:
+            for line in block.split('\n'):
+                line = line.strip()
+                # 跳过注释和空行
+                if line and not line.startswith('--') and len(line) > 8:
+                    line = re.sub(r'^\-\-\s*', '', line)
+                    line = line.rstrip(';').strip()
+                    if self._looks_like_sql(line):
+                        sql_lines.append(line)
+
+        # 去重
+        seen = set()
+        unique_sqls = []
+        for sql in sql_lines:
+            sql_lower = sql.lower()
+            if sql_lower not in seen:
+                seen.add(sql_lower)
+                unique_sqls.append(sql)
+
+        # 为每个唯一 SQL 创建建议
+        for sql in unique_sqls[:8]:
+            # 确定优先级
+            priority = "建议"
+            sql_upper = sql.upper()
+            if 'VACUUM' in sql_upper:
+                priority = "紧急"
+                text = f"执行 VACUUM 清理死亡元组"
+            elif 'CREATE INDEX' in sql_upper:
+                priority = "警告"
+                text = f"创建索引优化查询性能"
+            elif 'ALTER' in sql_upper:
+                priority = "建议"
+                text = f"修改表结构"
+            else:
+                text = sql[:60] + ("..." if len(sql) > 60 else "")
+
+            suggestions.append({
+                "priority": priority,
+                "text": text,
+                "sql": sql + ";"
+            })
+
+        return suggestions
+
+    def _looks_like_sql(self, text: str) -> bool:
+        """判断文本是否像 SQL"""
+        sql_keywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'VACUUM', 'ANALYZE', 'INDEX', 'TABLE', 'GRANT', 'REINDEX']
+        text_upper = text.upper()
+        return any(text_upper.startswith(kw) or text_upper.startswith(kw + ' ') for kw in sql_keywords)
+
+    def _clean_analysis_text(self, response: str) -> str:
+        """清理分析文本，移除思考标签"""
+        clean = re.sub(r'<think>[\s\S]*?</think>', '', response)
+        clean = re.sub(r'<think>.*$', '', clean, flags=re.MULTILINE)
+        return clean.strip()
 
     def _build_prompt(self, overview: Dict, table_stats: List[Dict], index_stats: List[Dict] = None) -> str:
         """构建分析提示词"""
@@ -84,7 +170,7 @@ class PerformanceAnalyzer:
             f"- {t['table']}: 死亡行={t.get('dead_rows', 0)}, "
             f"全表扫描={t.get('seq_scans', 0)}, 索引扫描={t.get('index_scans', 0)}, "
             f"插入={t.get('inserts', 0)}, 更新={t.get('updates', 0)}, 删除={t.get('deletes', 0)}"
-            for t in table_stats[:10]  # 只取前10个
+            for t in table_stats[:10]
         ])
 
         problem_text = "\n".join([
@@ -106,54 +192,31 @@ class PerformanceAnalyzer:
 ## 重点问题表
 {problem_text if problem_text else "无"}
 
-请分析以上数据，用中文给出：
-1. 当前数据库的整体健康状况评估
-2. 具体的优化建议（针对发现的问题）
-3. 需要立即处理的紧急问题
+请分析以上数据，先给出健康评估，然后给出具体优化建议。
 
-请用简洁的列表格式输出建议，每个建议说明：
-- 问题是什么
-- 如何解决（给出具体的 SQL 命令如果适用）
+【重要】请以 JSON 格式返回建议列表，格式如下：
+```json
+[
+  {{
+    "priority": "紧急",
+    "text": "问题描述：XXX，建议：执行 VACUUM ANALYZE 清理死亡元组",
+    "sql": "VACUUM ANALYZE hr_employees;"
+  }},
+  {{
+    "priority": "建议",
+    "text": "问题描述：XXX，建议：创建索引",
+    "sql": "CREATE INDEX CONCURRENTLY idx_hr_employees_dept ON hr_employees(department_id);"
+  }}
+]
+```
 
-格式示例：
-【健康评估】数据库整体状态：XXX
-【紧急】问题1：XXX，建议：XXX
-【建议】问题2：XXX，建议：XXX
+注意：
+1. priority 可选值：紧急、警告、建议
+2. sql 字段：如果该建议有对应的 SQL 命令则填写，如果没有则填空字符串 ""
+3. 只返回真正需要执行的 SQL，不要编造不需要执行的 SQL
+4. 最多返回 8 条建议
+
+现在请分析并返回 JSON：
 """
 
         return prompt
-
-    def _parse_suggestions(self, response: str) -> List[Dict[str, str]]:
-        """从 AI 响应中解析建议"""
-        # 移除扩展思考标签及其内容
-        import re
-        clean_response = re.sub(r'<think>[\s\S]*?</think>', '', response)
-        # 移除 <think> 开头的思考内容（如果没有结束标签）
-        clean_response = re.sub(r'<think>.*$', '', clean_response, flags=re.MULTILINE)
-
-        suggestions = []
-        lines = clean_response.split("\n")
-        current_priority = "建议"
-
-        for line in lines:
-            line = line.strip()
-            if "【紧急】" in line or "【严重】" in line:
-                current_priority = "紧急"
-                line = line.replace("【紧急】", "").replace("【严重】", "").strip()
-            elif "【警告】" in line or "【注意】" in line:
-                current_priority = "警告"
-                line = line.replace("【警告】", "").replace("【注意】", "").strip()
-            elif "【建议】" in line or "【优化】" in line:
-                current_priority = "建议"
-                line = line.replace("【建议】", "").replace("【优化】", "").strip()
-            elif "【健康评估】" in line or "【评估】" in line or "【总结】" in line:
-                continue  # 健康评估不是建议
-
-            # 过滤掉表格行、空行、过于简短的行
-            if line and len(line) > 10 and not line.startswith("|") and not line.startswith("-"):
-                suggestions.append({
-                    "priority": current_priority,
-                    "text": line
-                })
-
-        return suggestions[:10]  # 最多返回10条建议

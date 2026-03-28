@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Card, Row, Col, Table, Tag, Button, Statistic } from 'antd'
-import { ReloadOutlined } from '@ant-design/icons'
+import { Card, Row, Col, Table, Tag, Button, Statistic, message, Modal } from 'antd'
+import { ReloadOutlined, PlayCircleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 
 interface TableStat {
@@ -20,6 +20,7 @@ interface TableStat {
 interface Suggestion {
   priority: string
   text: string
+  sql?: string
 }
 
 export default function Monitor() {
@@ -30,6 +31,7 @@ export default function Monitor() {
   const [errorMsg, setErrorMsg] = useState<string>('')
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [analysisText, setAnalysisText] = useState<string>('')
+  const [executingSql, setExecutingSql] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAllData()
@@ -108,6 +110,44 @@ export default function Monitor() {
     } finally {
       setAnalyzing(false)
     }
+  }
+
+  const executeSql = async (sql: string) => {
+    Modal.confirm({
+      title: '确认执行 SQL',
+      content: (
+        <div>
+          <p className="mb-2">确定要执行以下 SQL 吗？</p>
+          <pre className="bg-gray-100 p-2 rounded text-sm overflow-x-auto">{sql}</pre>
+        </div>
+      ),
+      okText: '执行',
+      cancelText: '取消',
+      onOk: async () => {
+        setExecutingSql(sql)
+        try {
+          const res = await fetch('/api/db/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              connection_id: 'default',
+              sql: sql,
+              limit: 10
+            })
+          })
+          const data = await res.json()
+          if (data.error) {
+            message.error(`执行失败: ${data.error}`)
+          } else {
+            message.success(`SQL 执行成功，影响行数: ${data.row_count || 0}`)
+          }
+        } catch (e) {
+          message.error('执行失败: 网络错误')
+        } finally {
+          setExecutingSql(null)
+        }
+      }
+    })
   }
 
   const getPriorityColor = (priority: string) => {
@@ -210,9 +250,26 @@ export default function Monitor() {
           <div className="space-y-3">
             {suggestions.length > 0 ? (
               suggestions.map((s, i) => (
-                <Tag key={i} color={getPriorityColor(s.priority)}>
-                  {s.text}
-                </Tag>
+                <div key={i} className="flex items-start gap-2">
+                  <Tag color={getPriorityColor(s.priority)} className="mt-1">
+                    {s.priority}
+                  </Tag>
+                  <div className="flex-1">
+                    <p className="m-0">{s.text}</p>
+                    {s.sql && (
+                      <Button
+                        type="link"
+                        size="small"
+                        icon={<PlayCircleOutlined />}
+                        loading={executingSql === s.sql}
+                        onClick={() => s.sql && executeSql(s.sql)}
+                        className="mt-1"
+                      >
+                        执行
+                      </Button>
+                    )}
+                  </div>
+                </div>
               ))
             ) : (
               <div className="text-gray-600 whitespace-pre-wrap">{analysisText}</div>
