@@ -31,10 +31,15 @@ class PerformanceAnalyzer:
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3
             )
+            # 清理思考标签
+            import re
+            clean_analysis = re.sub(r'<think>[\s\S]*?</think>', '', response)
+            clean_analysis = re.sub(r'<think>.*$', '', clean_analysis, flags=re.MULTILINE).strip()
+
             return {
                 "success": True,
-                "suggestions": self._parse_suggestions(response),
-                "analysis": response
+                "suggestions": self._parse_suggestions(clean_analysis),
+                "analysis": clean_analysis
             }
         except Exception as e:
             return {
@@ -120,8 +125,14 @@ class PerformanceAnalyzer:
 
     def _parse_suggestions(self, response: str) -> List[Dict[str, str]]:
         """从 AI 响应中解析建议"""
+        # 移除扩展思考标签及其内容
+        import re
+        clean_response = re.sub(r'<think>[\s\S]*?</think>', '', response)
+        # 移除 <think> 开头的思考内容（如果没有结束标签）
+        clean_response = re.sub(r'<think>.*$', '', clean_response, flags=re.MULTILINE)
+
         suggestions = []
-        lines = response.split("\n")
+        lines = clean_response.split("\n")
         current_priority = "建议"
 
         for line in lines:
@@ -135,13 +146,14 @@ class PerformanceAnalyzer:
             elif "【建议】" in line or "【优化】" in line:
                 current_priority = "建议"
                 line = line.replace("【建议】", "").replace("【优化】", "").strip()
-            elif "【健康评估】" in line or "【评估】" in line:
+            elif "【健康评估】" in line or "【评估】" in line or "【总结】" in line:
                 continue  # 健康评估不是建议
 
-            if line and len(line) > 5:
+            # 过滤掉表格行、空行、过于简短的行
+            if line and len(line) > 10 and not line.startswith("|") and not line.startswith("-"):
                 suggestions.append({
                     "priority": current_priority,
                     "text": line
                 })
 
-        return suggestions
+        return suggestions[:10]  # 最多返回10条建议
