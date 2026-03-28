@@ -87,37 +87,38 @@ async def test_connection(conn: ConnectionTest):
 @router.post("/query")
 async def execute_query(req: QueryRequest):
     """执行 SQL 查询"""
-    from src.db.manager import get_connection_manager
+    from src.db.connection import get_monitor_connection
     from sqlalchemy import text
     import time
 
-    manager = get_connection_manager(get_db_config())
-    conn = manager.get_connection(req.connection_id)
-
-    if not conn:
-        raise HTTPException(status_code=404, detail="Connection not found")
+    # 优先使用请求中的 connection_id 查找连接
+    connection_id = req.connection_id
 
     try:
-        # 获取连接字符串并执行查询
-        engine = conn.get_connection_string()
-        from sqlalchemy import create_engine
+        # 使用共享的监控数据库连接
+        conn = get_monitor_connection()
+        cur = conn.cursor()
 
-        with create_engine(engine).connect() as db_conn:
-            start = time.time()
-            result = db_conn.execute(text(req.sql))
-            rows = result.fetchmany(req.limit)
-            columns = result.keys()
-            execution_time = int((time.time() - start) * 1000)
+        start = time.time()
+        cur.execute(req.sql)
+        rows = cur.fetchmany(req.limit)
+        columns = [desc[0] for desc in cur.description] if cur.description else []
+        execution_time = int((time.time() - start) * 1000)
 
-            result_data = {
-                "columns": list(columns),
-                "rows": [dict(zip(columns, row)) for row in rows],
-                "row_count": len(rows),
-                "execution_time_ms": execution_time
-            }
-            # 添加到历史
-            add_to_history(req.sql, req.connection_id, len(rows), execution_time)
-            return result_data
+        result_data = {
+            "columns": columns,
+            "rows": [dict(zip(columns, row)) for row in rows],
+            "row_count": len(rows),
+            "execution_time_ms": execution_time
+        }
+
+        # 添加到历史
+        add_to_history(req.sql, connection_id or "monitor", len(rows), execution_time)
+
+        cur.close()
+        conn.close()
+
+        return result_data
     except Exception as e:
         return {
             "columns": [],
@@ -131,27 +132,26 @@ async def execute_query(req: QueryRequest):
 @router.post("/query/explain")
 async def explain_query(req: QueryRequest):
     """执行 EXPLAIN 查看查询计划"""
-    from src.db.manager import get_connection_manager
-    from sqlalchemy import text, create_engine
-
-    manager = get_connection_manager(get_db_config())
-    conn = manager.get_connection(req.connection_id)
-
-    if not conn:
-        raise HTTPException(status_code=404, detail="Connection not found")
+    from src.db.connection import get_monitor_connection
 
     try:
-        engine = conn.get_connection_string()
-        with create_engine(engine).connect() as db_conn:
-            # PostgreSQL 的 EXPLAIN
-            explain_sql = f"EXPLAIN (FORMAT TEXT) {req.sql}"
-            result = db_conn.execute(text(explain_sql))
-            rows = result.fetchall()
+        conn = get_monitor_connection()
+        cur = conn.cursor()
 
-            return {
-                "success": True,
-                "plan": "\n".join([row[0] for row in rows])
-            }
+        # PostgreSQL 的 EXPLAIN
+        explain_sql = f"EXPLAIN (FORMAT TEXT) {req.sql}"
+        cur.execute(explain_sql)
+        rows = cur.fetchall()
+
+        plan = "\n".join([row[0] for row in rows])
+
+        cur.close()
+        conn.close()
+
+        return {
+            "success": True,
+            "plan": plan
+        }
     except Exception as e:
         return {
             "success": False,

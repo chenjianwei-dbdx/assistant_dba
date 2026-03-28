@@ -14,6 +14,7 @@ from ..agents.table_selector import TableSelector
 from ..agents.sql_generator import SQLGenerator
 from ..agents.result_summarizer import ResultSummarizer
 from ..core.llm import LLMClient, LLMError
+from ..db.connection import get_monitor_connection
 
 router = APIRouter()
 
@@ -36,9 +37,8 @@ class Text2SQLResponse(BaseModel):
 
 def get_llm_client() -> LLMClient:
     """获取 LLM 客户端"""
-    import yaml
-    with open('/Users/cjwdsg/smart-assistant/configs/settings.yaml', 'r') as f:
-        config = yaml.safe_load(f)
+    from src.config import get_config
+    config = get_config()
     llm_config = config.get('llm', {})
     return LLMClient(llm_config)
 
@@ -51,9 +51,17 @@ def get_schema_loader() -> SchemaLoader:
 def get_introspector() -> SchemaIntrospector:
     """获取 Schema Introspector"""
     from sqlalchemy import create_engine
-    engine = create_engine(
-        "postgresql://cjwdsg:@127.0.0.1:5432/erp_simulation"
-    )
+    from src.config import get_config
+    config = get_config()
+    monitor = config.get("monitor", {})
+    db = config.get("database", {})
+    host = monitor.get("host", db.get("host", "127.0.0.1"))
+    port = monitor.get("port", db.get("port", 5432))
+    user = monitor.get("username", db.get("username", "cjwdsg"))
+    password = monitor.get("password", db.get("password", ""))
+    database = monitor.get("database", db.get("database", "erp_simulation"))
+    conn_str = f"postgresql://{user}:{password}@{host}:{port}/{database}"
+    engine = create_engine(conn_str)
     return SchemaIntrospector(engine)
 
 
@@ -167,20 +175,20 @@ async def execute_sql(req: Text2SQLExecuteRequest) -> Text2SQLResponse:
                 error=validation.error
             )
 
-        from sqlalchemy import create_engine, text
-
-        engine = create_engine(
-            "postgresql://cjwdsg:@127.0.0.1:5432/erp_simulation"
-        )
+        # 使用共享数据库连接
+        conn = get_monitor_connection()
+        cur = conn.cursor()
 
         start_time = time.time()
-        with engine.connect() as conn:
-            result = conn.execute(text(req.sql))
-            rows = result.fetchmany(1000)
-            columns = list(result.keys())
-            execution_time_ms = int((time.time() - start_time) * 1000)
+        cur.execute(req.sql)
+        rows = cur.fetchmany(1000)
+        columns = [desc[0] for desc in cur.description] if cur.description else []
+        execution_time_ms = int((time.time() - start_time) * 1000)
 
         row_dicts = [dict(zip(columns, row)) for row in rows]
+
+        cur.close()
+        conn.close()
 
         # Layer 3: 结果摘要
         llm_client = get_llm_client()
