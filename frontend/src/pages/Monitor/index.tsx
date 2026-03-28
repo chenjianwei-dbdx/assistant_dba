@@ -1,228 +1,173 @@
 import { useState, useEffect } from 'react'
-import { Card, Row, Col, Table, Tag, Progress, Button, message } from 'antd'
+import { Card, Row, Col, Table, Tag, Button, Statistic } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
-import { ColumnsType } from 'antd/es/table'
-import { useNavigate } from 'react-router-dom'
+import type { ColumnsType } from 'antd/es/table'
 
-interface SlowQuery {
+interface TableStat {
   key: string
-  sql: string
-  execution_time_ms: number
-  timestamp: string
-  suggestions: string[]
+  schema: string
+  table: string
+  seq_scans: number
+  index_scans: number
+  index_scans_ratio: string
+  inserts: number
+  updates: number
+  deletes: number
+  live_rows: number
+  dead_rows: number
 }
 
 export default function Monitor() {
-  const navigate = useNavigate()
-  const [slowQueries, setSlowQueries] = useState<SlowQuery[]>([])
   const [loading, setLoading] = useState(false)
+  const [overview, setOverview] = useState<any>(null)
+  const [tableStats, setTableStats] = useState<TableStat[]>([])
+  const [errorMsg, setErrorMsg] = useState<string>('')
 
   useEffect(() => {
-    fetchSlowQueries()
+    fetchAllData()
   }, [])
 
-  const fetchSlowQueries = async () => {
+  const fetchAllData = async () => {
     setLoading(true)
+    setErrorMsg('')
     try {
-      // 先获取连接列表
-      const connRes = await fetch('/api/db/connections')
-      const connData = await connRes.json()
-      const connections = connData.connections || []
+      const [overviewRes, tablesRes] = await Promise.all([
+        fetch('/api/monitor/overview'),
+        fetch('/api/monitor/table-stats')
+      ])
 
-      if (connections.length === 0) {
-        message.warning('请先添加数据库连接')
-        setSlowQueries([])
-        return
+      const overviewData = await overviewRes.json()
+      const tablesData = await tablesRes.json()
+
+      if (overviewData.success && overviewData.data) {
+        const d = overviewData.data
+        let hitRate = '100'
+        if (d.block_reads > 0) {
+          hitRate = ((d.block_hits / (d.block_hits + d.block_reads) * 100).toFixed(1))
+        }
+        setOverview({
+          connections: d.connections,
+          active_queries: d.active_queries,
+          hit_rate: hitRate,
+          commit: d.transactions_commit,
+          rollback: d.transactions_rollback
+        })
       }
 
-      // 使用第一个连接查询慢查询
-      const conn = connections[0]
-      const res = await fetch('/api/db/query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          connection_id: conn.id,
-          sql: `SELECT query, calls, total_exec_time, mean_exec_time, max_exec_time
-                FROM pg_stat_statements
-                WHERE mean_exec_time > 100
-                ORDER BY mean_exec_time DESC
-                LIMIT 10`,
-          limit: 10
+      if (tablesData.success && tablesData.data?.tables) {
+        const tables = tablesData.data.tables.map((t: any, idx: number) => {
+          const idxRatio = t.index_scans > 0 && t.seq_scans > 0
+            ? (t.index_scans / (t.seq_scans + t.index_scans) * 100).toFixed(1)
+            : '0'
+          return {
+            key: String(idx),
+            schema: t.schema,
+            table: t.table,
+            seq_scans: t.seq_scans,
+            index_scans: t.index_scans,
+            index_scans_ratio: idxRatio,
+            inserts: t.inserts,
+            updates: t.updates,
+            deletes: t.deletes,
+            live_rows: t.live_rows,
+            dead_rows: t.dead_rows
+          }
         })
-      })
-      const data = await res.json()
-
-      if (data.error) {
-        // 如果 pg_stat_statements 不可用，返回空
-        setSlowQueries([])
-      } else {
-        const queries = (data.rows || []).map((row: any, idx: number) => ({
-          key: String(idx),
-          sql: row.query || row.query_text || 'N/A',
-          execution_time_ms: Math.round(row.mean_exec_time || row.total_exec_time || 0),
-          timestamp: new Date().toISOString(),
-          suggestions: ['建议添加索引', '考虑优化查询条件']
-        }))
-        setSlowQueries(queries)
+        setTableStats(tables)
       }
     } catch (e) {
-      console.error('获取慢查询失败:', e)
-      message.error('获取慢查询失败')
-      setSlowQueries([])
+      setErrorMsg('获取监控数据失败')
     } finally {
       setLoading(false)
     }
   }
 
-  const columns: ColumnsType<SlowQuery> = [
-    {
-      title: 'SQL',
-      dataIndex: 'sql',
-      ellipsis: true,
-      width: 300,
-      render: (sql: string) => (
-        <code className="text-xs bg-gray-100 px-2 py-1 rounded">{sql.slice(0, 50)}...</code>
-      )
-    },
-    {
-      title: '平均执行时间 (ms)',
-      dataIndex: 'execution_time_ms',
-      width: 120,
-      render: (ms: number) => (
-        <Tag color={ms > 3000 ? 'red' : ms > 1000 ? 'orange' : 'green'}>{ms}ms</Tag>
-      )
-    },
-    { title: '时间戳', dataIndex: 'timestamp', width: 180 },
-    {
-      title: '优化建议',
-      dataIndex: 'suggestions',
-      render: (suggestions: string[]) => (
-        <div className="flex flex-wrap gap-1">
-          {suggestions.map((s, i) => (
-            <Tag key={i} color="blue">{s}</Tag>
-          ))}
-        </div>
-      )
-    }
+  const tableColumns: ColumnsType<TableStat> = [
+    { title: '表名', dataIndex: 'table', width: 150, render: (t) => <code className="text-sm">{t}</code> },
+    { title: 'Seq Scan', dataIndex: 'seq_scans', width: 100, align: 'right', render: (v) => <span style={{ color: v > 10000 ? '#faad14' : undefined }}>{v.toLocaleString()}</span> },
+    { title: 'Index Scan', dataIndex: 'index_scans', width: 100, align: 'right', render: (v) => <span style={{ color: '#52c41a' }}>{v.toLocaleString()}</span> },
+    { title: '索引率%', dataIndex: 'index_scans_ratio', width: 80, align: 'right' },
+    { title: '插入', dataIndex: 'inserts', width: 80, align: 'right' },
+    { title: '更新', dataIndex: 'updates', width: 80, align: 'right' },
+    { title: '删除', dataIndex: 'deletes', width: 80, align: 'right' },
+    { title: '存活行', dataIndex: 'live_rows', width: 100, align: 'right' },
+    { title: '死亡行', dataIndex: 'dead_rows', width: 100, align: 'right', render: (v) => <Tag color={v > 100 ? 'red' : v > 0 ? 'orange' : 'green'}>{v.toLocaleString()}</Tag> }
   ]
 
+  const getHitRateColor = () => {
+    if (!overview) return '#d9d9d9'
+    return Number(overview.hit_rate) > 90 ? '#52c41a' : Number(overview.hit_rate) > 80 ? '#faad14' : '#f5222d'
+  }
+
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold m-0">性能监控</h1>
-        <p className="text-gray-500 mt-1">实时性能监控</p>
+    <div className="p-6">
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold m-0">性能监控</h1>
+          <p className="text-gray-500 mt-1">PostgreSQL 数据库实时性能指标</p>
+        </div>
+        <Button icon={<ReloadOutlined />} onClick={fetchAllData} loading={loading}>
+          刷新
+        </Button>
       </div>
+
+      {errorMsg && <Tag color="red">{errorMsg}</Tag>}
 
       <Row gutter={16} className="mb-6">
         <Col span={6}>
-          <Card bordered className="shadow-sm">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600">{slowQueries.length}</div>
-              <div className="text-gray-500">慢查询数</div>
-            </div>
+          <Card bordered>
+            <Statistic title="当前连接数" value={overview?.connections || 0} />
           </Card>
         </Col>
         <Col span={6}>
-          <Card bordered className="shadow-sm">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-600">-</div>
-              <div className="text-gray-500">每秒查询数 (QPS)</div>
-            </div>
+          <Card bordered>
+            <Statistic title="活跃查询" value={overview?.active_queries || 0} />
           </Card>
         </Col>
         <Col span={6}>
-          <Card bordered className="shadow-sm">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-orange-600">-</div>
-              <div className="text-gray-500">平均响应时间</div>
-            </div>
+          <Card bordered>
+            <Statistic
+              title="缓存命中率"
+              value={(overview?.hit_rate || '0') + '%'}
+              valueStyle={{ color: getHitRateColor() }}
+            />
           </Card>
         </Col>
         <Col span={6}>
-          <Card bordered className="shadow-sm">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600">-</div>
-              <div className="text-gray-500">运行时间</div>
-            </div>
+          <Card bordered>
+            <Statistic
+              title="事务提交/回滚"
+              value={`${(overview?.commit || 0).toLocaleString()} / ${overview?.rollback || 0}`}
+            />
           </Card>
         </Col>
       </Row>
 
-      <Card
-        title="慢查询列表"
-        bordered
-        className="shadow-sm mb-6"
-        extra={
-          <Button icon={<ReloadOutlined />} onClick={fetchSlowQueries} loading={loading}>
-            刷新
-          </Button>
-        }
-      >
-        {slowQueries.length === 0 && !loading ? (
-          <div className="text-center py-8 text-gray-500">
-            <p>暂无慢查询数据</p>
-            <Button type="link" onClick={() => navigate('/connections')}>添加数据库连接</Button>
-          </div>
-        ) : (
-          <Table
-            columns={columns}
-            dataSource={slowQueries}
-            rowKey="key"
-            pagination={false}
-            loading={loading}
-          />
-        )}
+      <Card title="表扫描统计" className="mb-6" loading={loading}>
+        <Table
+          columns={tableColumns}
+          dataSource={tableStats}
+          pagination={{ pageSize: 10 }}
+          size="small"
+        />
       </Card>
 
-      <Row gutter={16}>
-        <Col span={12}>
-          <Card title="查询性能" bordered className="shadow-sm">
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span>平均响应时间</span>
-                  <span className="text-green-500">-</span>
-                </div>
-                <Progress percent={0} showInfo={false} strokeColor="#52c41a" />
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span>P95 响应时间</span>
-                  <span className="text-orange-500">-</span>
-                </div>
-                <Progress percent={0} showInfo={false} strokeColor="#faad14" />
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span>P99 响应时间</span>
-                  <span className="text-red-500">-</span>
-                </div>
-                <Progress percent={0} showInfo={false} strokeColor="#f5222d" />
-              </div>
-            </div>
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card title="连接池状态" bordered className="shadow-sm">
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span>活跃连接</span>
-                  <span>- / 100</span>
-                </div>
-                <Progress percent={0} showInfo={false} />
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span>空闲连接</span>
-                  <span>- / 100</span>
-                </div>
-                <Progress percent={0} showInfo={false} strokeColor="#1890ff" />
-              </div>
-            </div>
-          </Card>
-        </Col>
-      </Row>
+      <Card title="优化建议" bordered>
+        <div className="space-y-2">
+          {overview && Number(overview.hit_rate) < 90 && (
+            <Tag color="red">警告: 缓存命中率低于 90%，建议增加 shared_buffers</Tag>
+          )}
+          {tableStats.filter(t => t.dead_rows > 100).length > 0 && (
+            <Tag color="orange">有些表死元组较多，建议执行 VACUUM</Tag>
+          )}
+          {tableStats.filter(t => Number(t.index_scans_ratio) < 50).length > 0 && (
+            <Tag color="orange">部分表索引扫描率偏低，考虑添加索引</Tag>
+          )}
+          {!errorMsg && tableStats.length === 0 && (
+            <Tag>暂无明显性能问题</Tag>
+          )}
+        </div>
+      </Card>
     </div>
   )
 }

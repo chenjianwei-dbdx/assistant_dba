@@ -40,3 +40,12 @@ database:
   pg_username: "postgres"
   pg_password: "YOUR_PG_PASSWORD_HERE"
   pg_database: "ai_intel"
+
+# 性能监控配置
+monitor:
+  # 监控的目标数据库连接
+  host: "localhost"
+  port: 5432
+  username: "postgres"
+  password: "YOUR_PG_PASSWORD_HERE"
+  database: "erp_simulation"
