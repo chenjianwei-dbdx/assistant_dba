@@ -3,8 +3,7 @@ Slow Query Analyzer Plugin
 慢查询分析插件
 """
 from typing import Dict
-from ..base import DBATool, ToolResult
-from src.db.connection import get_monitor_connection
+from ..base import DBATool, ToolResult, PluginContext
 
 
 class SlowQueryAnalyzer(DBATool):
@@ -43,60 +42,59 @@ class SlowQueryAnalyzer(DBATool):
             }
         ]
 
-    def execute(self, **kwargs) -> ToolResult:
+    def execute(self, context: PluginContext, **kwargs) -> ToolResult:
         limit = kwargs.get("limit", 10)
         threshold_ms = kwargs.get("threshold_ms", 100)
 
         try:
-            conn = get_monitor_connection()
-            cur = conn.cursor()
+            with context.get_connection() as conn:
+                cur = conn.cursor()
 
-            # 查询慢查询（需要 pg_stat_statements 扩展）
-            cur.execute("""
-                SELECT query, calls, total_exec_time, mean_exec_time, max_exec_time, min_exec_time
-                FROM pg_stat_statements
-                WHERE mean_exec_time >= %s
-                ORDER BY mean_exec_time DESC
-                LIMIT %s
-            """, (threshold_ms, limit))
+                # 查询慢查询（需要 pg_stat_statements 扩展）
+                cur.execute("""
+                    SELECT query, calls, total_exec_time, mean_exec_time, max_exec_time, min_exec_time
+                    FROM pg_stat_statements
+                    WHERE mean_exec_time >= %s
+                    ORDER BY mean_exec_time DESC
+                    LIMIT %s
+                """, (threshold_ms, limit))
 
-            slow_queries = []
-            for row in cur.fetchall():
-                sql = row[0]
-                # 生成简单建议
-                suggestions = self._generate_suggestions(sql, row[3])
+                slow_queries = []
+                for row in cur.fetchall():
+                    sql = row[0]
+                    # 生成简单建议
+                    suggestions = self._generate_suggestions(sql, row[3])
 
-                slow_queries.append({
-                    "sql": sql,
-                    "calls": row[1],
-                    "total_time_ms": round(row[2], 2),
-                    "mean_time_ms": round(row[3], 2),
-                    "max_time_ms": round(row[4], 2),
-                    "min_time_ms": round(row[5], 2),
-                    "suggestions": suggestions
-                })
+                    slow_queries.append({
+                        "sql": sql,
+                        "calls": row[1],
+                        "total_time_ms": round(row[2], 2),
+                        "mean_time_ms": round(row[3], 2),
+                        "max_time_ms": round(row[4], 2),
+                        "min_time_ms": round(row[5], 2),
+                        "suggestions": suggestions
+                    })
 
-            cur.close()
-            conn.close()
+                cur.close()
 
-            if not slow_queries:
+                if not slow_queries:
+                    return ToolResult(
+                        success=True,
+                        output={
+                            "slow_queries": [],
+                            "total_count": 0,
+                            "message": "未发现慢查询或 pg_stat_statements 未启用"
+                        }
+                    )
+
                 return ToolResult(
                     success=True,
                     output={
-                        "slow_queries": [],
-                        "total_count": 0,
-                        "message": "未发现慢查询或 pg_stat_statements 未启用"
-                    }
+                        "slow_queries": slow_queries,
+                        "total_count": len(slow_queries)
+                    },
+                    metadata={"limit": limit, "threshold_ms": threshold_ms}
                 )
-
-            return ToolResult(
-                success=True,
-                output={
-                    "slow_queries": slow_queries,
-                    "total_count": len(slow_queries)
-                },
-                metadata={"limit": limit, "threshold_ms": threshold_ms}
-            )
         except Exception as e:
             error_msg = str(e)
             if "pg_stat_statements" in error_msg.lower() or "undefined table" in error_msg.lower():

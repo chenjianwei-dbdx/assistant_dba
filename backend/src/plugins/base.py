@@ -3,7 +3,26 @@ Plugin Base Module
 插件基类
 """
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from typing import Dict, Any
+
+
+class PluginContext:
+    """插件执行上下文，提供插件所需的服务"""
+
+    def __init__(self, db_manager, llm_client, config: dict):
+        self.db_manager = db_manager
+        self.llm_client = llm_client
+        self.config = config
+
+    @contextmanager
+    def get_connection(self):
+        """获取数据库连接"""
+        conn = self.db_manager.get_raw_connection()
+        try:
+            yield conn
+        finally:
+            conn.close()
 
 
 class ToolResult:
@@ -51,8 +70,8 @@ class DBATool(ABC):
         return []
 
     @abstractmethod
-    def execute(self, **kwargs) -> ToolResult:
-        """执行工具"""
+    def execute(self, context: PluginContext, **kwargs) -> ToolResult:
+        """使用 PluginContext 执行工具"""
         pass
 
     def get_schema(self) -> Dict:

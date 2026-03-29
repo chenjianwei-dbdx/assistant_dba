@@ -7,6 +7,8 @@ from typing import AsyncGenerator
 from .llm import LLMClient, LLMError
 from .intent import IntentAnalyzer
 from ..plugins.registry import get_registry
+from ..plugins.base import PluginContext
+from ..db.database import get_default_manager
 
 
 class ChatService:
@@ -46,7 +48,12 @@ class ChatService:
                     }
 
                 # 执行工具
-                result = tool.execute(**params)
+                context = PluginContext(
+                    db_manager=get_default_manager(),
+                    llm_client=self.llm_client,
+                    config={}
+                )
+                result = tool.execute(context, **params)
                 return {
                     "type": "tool_result",
                     "tool_name": tool_name,
@@ -96,7 +103,12 @@ class ChatService:
                     "tool_name": tool_name
                 }, ensure_ascii=False)
 
-                result = tool.execute(**params)
+                context = PluginContext(
+                    db_manager=get_default_manager(),
+                    llm_client=self.llm_client,
+                    config={}
+                )
+                result = tool.execute(context, **params)
 
                 yield json.dumps({
                     "type": "tool_result",

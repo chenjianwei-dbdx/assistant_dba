@@ -4,8 +4,7 @@ SQL 查询执行插件
 """
 import time
 from typing import Dict, Any
-from ..base import DBATool, ToolResult
-from src.db.connection import get_monitor_connection
+from ..base import DBATool, ToolResult, PluginContext
 
 
 class QueryExecutor(DBATool):
@@ -43,7 +42,7 @@ class QueryExecutor(DBATool):
             }
         ]
 
-    def execute(self, **kwargs) -> ToolResult:
+    def execute(self, context: PluginContext, **kwargs) -> ToolResult:
         sql = kwargs.get("sql", "")
         limit = kwargs.get("limit", 1000)
 
@@ -57,27 +56,26 @@ class QueryExecutor(DBATool):
             return ToolResult(success=False, error=f"禁止执行危险 SQL: {sql[:50]}...")
 
         try:
-            conn = get_monitor_connection()
-            cur = conn.cursor()
+            with context.get_connection() as conn:
+                cur = conn.cursor()
 
-            start_time = time.time()
-            cur.execute(sql)
-            columns = [desc[0] for desc in cur.description] if cur.description else []
-            rows = cur.fetchmany(limit)
-            execution_time_ms = int((time.time() - start_time) * 1000)
+                start_time = time.time()
+                cur.execute(sql)
+                columns = [desc[0] for desc in cur.description] if cur.description else []
+                rows = cur.fetchmany(limit)
+                execution_time_ms = int((time.time() - start_time) * 1000)
 
-            cur.close()
-            conn.close()
+                cur.close()
 
-            return ToolResult(
-                success=True,
-                output={
-                    "columns": columns,
-                    "rows": [dict(zip(columns, row)) for row in rows],
-                    "row_count": len(rows),
-                    "execution_time_ms": execution_time_ms
-                },
-                metadata={"sql": sql[:100], "limit": limit}
-            )
+                return ToolResult(
+                    success=True,
+                    output={
+                        "columns": columns,
+                        "rows": [dict(zip(columns, row)) for row in rows],
+                        "row_count": len(rows),
+                        "execution_time_ms": execution_time_ms
+                    },
+                    metadata={"sql": sql[:100], "limit": limit}
+                )
         except Exception as e:
             return ToolResult(success=False, error=f"查询失败: {str(e)}")
