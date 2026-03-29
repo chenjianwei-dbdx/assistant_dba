@@ -1,20 +1,12 @@
 """
 Text2SQL API
-自然语言转 SQL 的 API 端点
+自然语言转 SQL 的 API 端点（薄路由层）
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
-import time
+from typing import Optional
 
-from ..db.schema_loader import SchemaLoader
-from ..db.schema_introspector import SchemaIntrospector
-from ..db.sql_validator import SQLValidator
-from ..agents.table_selector import TableSelector
-from ..agents.sql_generator import SQLGenerator
-from ..agents.result_summarizer import ResultSummarizer
-from ..core.llm import LLMClient, LLMError
-from ..db.connection import get_monitor_connection
+from .text2sql import generate_sql, execute_sql, explain_sql
 
 router = APIRouter()
 
@@ -35,179 +27,31 @@ class Text2SQLResponse(BaseModel):
     error: Optional[str] = None
 
 
-def get_llm_client() -> LLMClient:
-    """获取 LLM 客户端"""
-    from src.config import get_config
-    config = get_config()
-    llm_config = config.get('llm', {})
-    return LLMClient(llm_config)
-
-
-def get_schema_loader() -> SchemaLoader:
-    """获取 Schema 加载器"""
-    return SchemaLoader()
-
-
-def get_introspector() -> SchemaIntrospector:
-    """获取 Schema Introspector"""
-    from sqlalchemy import create_engine
-    from src.config import get_config
-    config = get_config()
-    monitor = config.get("monitor", {})
-    db = config.get("database", {})
-    host = monitor.get("host", db.get("host", "127.0.0.1"))
-    port = monitor.get("port", db.get("port", 5432))
-    user = monitor.get("username", db.get("username", "cjwdsg"))
-    password = monitor.get("password", db.get("password", ""))
-    database = monitor.get("database", db.get("database", "erp_simulation"))
-    conn_str = f"postgresql://{user}:{password}@{host}:{port}/{database}"
-    engine = create_engine(conn_str)
-    return SchemaIntrospector(engine)
-
-
 @router.post("/text2sql")
-async def generate_sql(req: Text2SQLRequest) -> Text2SQLResponse:
-    """Text2SQL：生成 SQL"""
-    try:
-        schema_loader = get_schema_loader()
+async def text2sql_route(req: Text2SQLRequest) -> Text2SQLResponse:
+    """Text2SQL：生成 SQL
 
-        # 特殊处理：元查询（查询数据库结构）
-        meta_patterns = [
-            '有哪些表', '所有表', '表有哪些', '查询表', 'show tables',
-            '有什么表', '库里有', '数据库结构', '所有表名',
-            '表的列表', 'list tables'
-        ]
-        is_meta_query = any(p in req.query.lower() for p in meta_patterns)
+    委托给 text2sql.generate 模块处理
+    """
+    success, data, error = generate_sql(req.connection_id, req.query)
 
-        if is_meta_query:
-            # 直接返回表列表，不生成 SQL
-            all_tables = schema_loader.get_all_tables()
-            tables_with_desc = []
-            for table_name in all_tables:
-                config = schema_loader.get_table_config(table_name)
-                if config:
-                    tables_with_desc.append({
-                        "name": table_name,
-                        "module": config.get('module', ''),
-                        "description": config.get('description', '')
-                    })
-
-            return Text2SQLResponse(
-                success=True,
-                data={
-                    "sql": "",  # 无需 SQL
-                    "explanation": f"数据库中共有 {len(tables_with_desc)} 张表，均为 ERP 业务表",
-                    "affected_tables": all_tables,
-                    "is_meta_query": True,
-                    "tables": tables_with_desc,
-                    "estimated_rows": len(tables_with_desc)
-                }
-            )
-
-        introspector = get_introspector()
-        llm_client = get_llm_client()
-
-        # Layer 1: 表选择
-        table_selector = TableSelector(schema_loader, llm_client)
-        selected_tables = table_selector.select_tables(req.query)
-
-        if not selected_tables:
-            return Text2SQLResponse(
-                success=False,
-                error="无法确定相关的表，请尝试更详细的描述"
-            )
-
-        # Layer 2: SQL 生成
-        sql_generator = SQLGenerator(schema_loader, introspector, llm_client)
-        sql, explanation = sql_generator.generate(req.query, selected_tables)
-
-        if not sql:
-            return Text2SQLResponse(
-                success=False,
-                error=explanation or "SQL 生成失败"
-            )
-
-        # 验证 SQL
-        validator = SQLValidator()
-        valid_tables = schema_loader.get_all_tables()
-        validation = validator.validate(sql, valid_tables)
-
-        if not validation.valid:
-            return Text2SQLResponse(
-                success=False,
-                error=validation.error
-            )
-
-        return Text2SQLResponse(
-            success=True,
-            data={
-                "sql": sql,
-                "explanation": explanation,
-                "affected_tables": selected_tables,
-                "estimated_rows": 10
-            }
-        )
-
-    except LLMError as e:
-        return Text2SQLResponse(
-            success=False,
-            error=f"AI 服务错误: {str(e)}"
-        )
-    except Exception as e:
-        return Text2SQLResponse(
-            success=False,
-            error=f"服务器错误: {str(e)}"
-        )
+    return Text2SQLResponse(
+        success=success,
+        data=data,
+        error=error
+    )
 
 
 @router.post("/text2sql/execute")
-async def execute_sql(req: Text2SQLExecuteRequest) -> Text2SQLResponse:
-    """Text2SQL：执行 SQL"""
-    try:
-        schema_loader = get_schema_loader()
-        validator = SQLValidator()
-        valid_tables = schema_loader.get_all_tables()
-        validation = validator.validate(req.sql, valid_tables)
+async def execute_route(req: Text2SQLExecuteRequest) -> Text2SQLResponse:
+    """Text2SQL：执行 SQL
 
-        if not validation.valid:
-            return Text2SQLResponse(
-                success=False,
-                error=validation.error
-            )
+    委托给 text2sql.explain 模块处理
+    """
+    success, data, error = execute_sql(req.sql)
 
-        # 使用共享数据库连接
-        conn = get_monitor_connection()
-        cur = conn.cursor()
-
-        start_time = time.time()
-        cur.execute(req.sql)
-        rows = cur.fetchmany(1000)
-        columns = [desc[0] for desc in cur.description] if cur.description else []
-        execution_time_ms = int((time.time() - start_time) * 1000)
-
-        row_dicts = [dict(zip(columns, row)) for row in rows]
-
-        cur.close()
-        conn.close()
-
-        # Layer 3: 结果摘要
-        llm_client = get_llm_client()
-        summarizer = ResultSummarizer(llm_client)
-        summary = summarizer.summarize(columns, row_dicts)
-
-        return Text2SQLResponse(
-            success=True,
-            data={
-                "columns": columns,
-                "rows": row_dicts,
-                "row_count": len(row_dicts),
-                "execution_time_ms": execution_time_ms,
-                "summary": summary
-            }
-        )
-
-    except Exception as e:
-        return Text2SQLResponse(
-            success=False,
-            error=f"执行错误: {str(e)}"
-        )
+    return Text2SQLResponse(
+        success=success,
+        data=data,
+        error=error
+    )
