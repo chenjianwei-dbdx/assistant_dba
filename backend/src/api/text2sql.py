@@ -6,7 +6,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
-from .text2sql import generate_sql, execute_sql, explain_sql
+from .generate import generate_sql
+from .explain import execute_sql, explain_sql
 
 router = APIRouter()
 
