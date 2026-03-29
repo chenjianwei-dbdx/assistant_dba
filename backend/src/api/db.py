@@ -51,16 +51,16 @@ def get_db_config():
 @router.get("/connections")
 async def list_connections():
     """获取所有连接"""
-    from src.db.manager import get_connection_manager
-    manager = get_connection_manager(get_db_config())
+    from src.core.dependencies import get_connection_manager
+    manager = get_connection_manager()
     return {"connections": manager.list_connections()}
 
 
 @router.post("/connections")
 async def create_connection(conn: ConnectionCreate):
     """创建新连接"""
-    from src.db.manager import get_connection_manager
-    manager = get_connection_manager(get_db_config())
+    from src.core.dependencies import get_connection_manager
+    manager = get_connection_manager()
     result = manager.create_connection(conn.model_dump())
     return result.to_dict()
 
@@ -68,8 +68,8 @@ async def create_connection(conn: ConnectionCreate):
 @router.delete("/connections/{connection_id}")
 async def delete_connection(connection_id: str):
     """删除连接"""
-    from src.db.manager import get_connection_manager
-    manager = get_connection_manager(get_db_config())
+    from src.core.dependencies import get_connection_manager
+    manager = get_connection_manager()
     success = manager.delete_connection(connection_id)
     if not success:
         raise HTTPException(status_code=404, detail="Connection not found")
@@ -79,8 +79,8 @@ async def delete_connection(connection_id: str):
 @router.post("/connections/test")
 async def test_connection(conn: ConnectionTest):
     """测试连接"""
-    from src.db.manager import get_connection_manager
-    manager = get_connection_manager(get_db_config())
+    from src.core.dependencies import get_connection_manager
+    manager = get_connection_manager()
     return manager.test_connection(conn.model_dump())
 
 

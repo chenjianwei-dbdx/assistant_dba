@@ -3,7 +3,7 @@ Template Matching Logic
 模板匹配逻辑
 """
 from typing import List, Dict, Any, Optional
-from ...db.template_manager import get_template_manager, TemplateManager
+from ...core.dependencies import get_template_manager, TemplateManager
 
 
 # 元查询模式 - 查询数据库结构的特殊查询

@@ -146,13 +146,3 @@ class ConnectionManager:
             return {"success": False, "error": str(e)}
 
 
-# 全局实例
-_manager: Optional[ConnectionManager] = None
-
-
-def get_connection_manager(config: dict = None) -> ConnectionManager:
-    """获取连接管理器"""
-    global _manager
-    if _manager is None:
-        _manager = ConnectionManager(config)
-    return _manager
