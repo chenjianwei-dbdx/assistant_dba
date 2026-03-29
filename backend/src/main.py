@@ -1,11 +1,22 @@
 """
 DBA Assistant Backend - FastAPI
 """
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.api import chat, db, admin, text2sql, monitor
+from src.api import chat, db, admin, text2sql, monitor, templates, visit
 
-app = FastAPI(title="DBA Assistant API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from src.core.dependencies import get_container
+    from src.config import get_config
+    container = get_container()
+    container.init(get_config())
+    yield
+
+
+app = FastAPI(title="DBA Assistant API", version="0.1.0", lifespan=lifespan)
 
 # CORS
 app.add_middleware(
@@ -22,6 +33,8 @@ app.include_router(db.router, prefix="/api/db", tags=["database"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(text2sql.router, prefix="/api/db", tags=["text2sql"])
 app.include_router(monitor.router, prefix="/api/monitor", tags=["monitor"])
+app.include_router(templates.router, prefix="/api", tags=["templates"])
+app.include_router(visit.router, prefix="/api", tags=["visit"])
 
 
 @app.get("/")
