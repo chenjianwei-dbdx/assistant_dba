@@ -44,8 +44,8 @@ class QueryRequest(BaseModel):
 
 def get_db_config():
     """获取数据库配置"""
-    from src.config import get_config
-    return get_config().get("database", {})
+    from src.core.dependencies import get_connection_manager
+    return get_connection_manager().config
 
 
 @router.get("/connections")
