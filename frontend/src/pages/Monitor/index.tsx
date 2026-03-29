@@ -221,17 +221,17 @@ export default function Monitor() {
         <div>
           <Row gutter={16} className="mb-6">
             <Col span={6}>
-              <Card bordered>
+              <Card variant="bordered">
                 <Statistic title="当前连接数" value={overview?.connections || 0} />
               </Card>
             </Col>
             <Col span={6}>
-              <Card bordered>
+              <Card variant="bordered">
                 <Statistic title="活跃查询" value={overview?.active_queries || 0} />
               </Card>
             </Col>
             <Col span={6}>
-              <Card bordered>
+              <Card variant="bordered">
                 <Statistic
                   title="缓存命中率"
                   value={(overview?.hit_rate || '0') + '%'}
@@ -240,7 +240,7 @@ export default function Monitor() {
               </Card>
             </Col>
             <Col span={6}>
-              <Card bordered>
+              <Card variant="bordered">
                 <Statistic
                   title="事务提交/回滚"
                   value={`${(overview?.commit || 0).toLocaleString()} / ${overview?.rollback || 0}`}

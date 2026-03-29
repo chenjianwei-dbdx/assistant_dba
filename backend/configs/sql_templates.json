@@ -1,0 +1,265 @@
+[
+  {
+    "id": 1,
+    "name": "AWR-TopSQL(耗时)",
+    "category": "performance",
+    "description": "按总执行耗时排序的 Top SQL，类似 Oracle AWR 报告",
+    "sql_pattern": "SELECT query,\n       calls,\n       total_exec_time,\n       mean_exec_time,\n       (total_exec_time / NULLIF(calls, 0))::bigint as avg_ms,\n       rows,\n       shared_blks_hit,\n       shared_blks_read,\n       shared_blks Dirtied,\n       shared_blks Written\nFROM pg_stat_statements\nORDER BY total_exec_time DESC\nLIMIT {limit};",
+    "parameters": [
+      {
+        "name": "limit",
+        "type": "integer",
+        "default": 20,
+        "description": "返回条数"
+      }
+    ],
+    "examples": "查看耗时最长的 20 条 SQL",
+    "use_count": 0,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.888990",
+    "updated_at": "2026-03-28T20:01:14.889000"
+  },
+  {
+    "id": 2,
+    "name": "AWR-TopSQL(平均耗时)",
+    "category": "performance",
+    "description": "按平均执行耗时排序的 Top SQL",
+    "sql_pattern": "SELECT query,\n       calls,\n       mean_exec_time,\n       max_exec_time,\n       min_exec_time,\n       rows,\n       shared_blks_hit,\n       shared_blks_read\nFROM pg_stat_statements\nWHERE calls >= {min_calls}\nORDER BY mean_exec_time DESC\nLIMIT {limit};",
+    "parameters": [
+      {
+        "name": "limit",
+        "type": "integer",
+        "default": 20,
+        "description": "返回条数"
+      },
+      {
+        "name": "min_calls",
+        "type": "integer",
+        "default": 5,
+        "description": "最小调用次数"
+      }
+    ],
+    "examples": "查看平均耗时最长的 SQL（调用次数>=5）",
+    "use_count": 2,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.889415",
+    "updated_at": "2026-03-28T20:01:14.889418"
+  },
+  {
+    "id": 3,
+    "name": "AWR-TopSQL(Buffer)",
+    "category": "performance",
+    "description": "按 Buffer I/O 排序的 Top SQL",
+    "sql_pattern": "SELECT query,\n       calls,\n       shared_blks_hit,\n       shared_blks_read,\n       (shared_blks_hit + shared_blks_read) as total_buffer_gets,\n       ROUND((shared_blks_hit::numeric / NULLIF(shared_blks_hit + shared_blks_read, 0)) * 100, 1) as hit_ratio\nFROM pg_stat_statements\nORDER BY (shared_blks_hit + shared_blks_read) DESC\nLIMIT {limit};",
+    "parameters": [
+      {
+        "name": "limit",
+        "type": "integer",
+        "default": 20,
+        "description": "返回条数"
+      }
+    ],
+    "examples": "查看 Buffer 消耗最多的 SQL",
+    "use_count": 1,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.889921",
+    "updated_at": "2026-03-28T20:01:14.889923"
+  },
+  {
+    "id": 4,
+    "name": "慢查询列表",
+    "category": "slow_query",
+    "description": "执行时间超过阈值的查询",
+    "sql_pattern": "SELECT query,\n       calls,\n       mean_exec_time,\n       max_exec_time,\n       min_exec_time,\n       total_exec_time,\n       rows\nFROM pg_stat_statements\nWHERE mean_exec_time >= {threshold_ms}\nORDER BY mean_exec_time DESC\nLIMIT {limit};",
+    "parameters": [
+      {
+        "name": "threshold_ms",
+        "type": "integer",
+        "default": 100,
+        "description": "耗时阈值(ms)"
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "default": 20,
+        "description": "返回条数"
+      }
+    ],
+    "examples": "查看超过 100ms 的慢查询",
+    "use_count": 0,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.890067",
+    "updated_at": "2026-03-28T20:01:14.890068"
+  },
+  {
+    "id": 5,
+    "name": "表扫描统计",
+    "category": "table_stats",
+    "description": "按全表扫描次数排序的表统计",
+    "sql_pattern": "SELECT schemaname,\n       relname as table_name,\n       seq_scan,\n       seq_tup_read,\n       idx_scan,\n       idx_tup_fetch,\n       n_tup_ins,\n       n_tup_upd,\n       n_tup_del,\n       n_live_tup,\n       n_dead_tup,\n       ROUND(idx_scan::numeric / NULLIF(seq_scan + idx_scan, 0) * 100, 1) as idx_scan_ratio\nFROM pg_stat_user_tables\nWHERE schemaname = 'public'\nORDER BY seq_scan DESC\nLIMIT {limit};",
+    "parameters": [
+      {
+        "name": "limit",
+        "type": "integer",
+        "default": 20,
+        "description": "返回条数"
+      }
+    ],
+    "examples": "查看全表扫描最多的表",
+    "use_count": 0,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.890215",
+    "updated_at": "2026-03-28T20:01:14.890216"
+  },
+  {
+    "id": 6,
+    "name": "索引使用统计",
+    "category": "index_stats",
+    "description": "按扫描次数排序的索引统计",
+    "sql_pattern": "SELECT schemaname,\n       relname as table_name,\n       indexrelname as index_name,\n       idx_scan,\n       idx_tup_read,\n       idx_tup_fetch,\n       pg_size_pretty(pg_relation_size(indexrelid)) as index_size\nFROM pg_stat_user_indexes\nWHERE schemaname = 'public'\nORDER BY idx_scan DESC\nLIMIT {limit};",
+    "parameters": [
+      {
+        "name": "limit",
+        "type": "integer",
+        "default": 20,
+        "description": "返回条数"
+      }
+    ],
+    "examples": "查看使用最多的索引",
+    "use_count": 0,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.890367",
+    "updated_at": "2026-03-28T20:01:14.890375"
+  },
+  {
+    "id": 7,
+    "name": "未使用索引",
+    "category": "index_stats",
+    "description": "从未被扫描过的索引",
+    "sql_pattern": "SELECT schemaname,\n       relname as table_name,\n       indexrelname as index_name,\n       pg_size_pretty(pg_relation_size(indexrelid)) as index_size,\n       indexdef\nFROM pg_stat_user_indexes\nWHERE idx_scan = 0\nAND schemaname = 'public'\nORDER BY pg_relation_size(indexrelid) DESC;",
+    "parameters": [],
+    "examples": "找出从未使用的索引",
+    "use_count": 0,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.890532",
+    "updated_at": "2026-03-28T20:01:14.890540"
+  },
+  {
+    "id": 8,
+    "name": "死亡元组检测",
+    "category": "vacuum",
+    "description": "死亡元组过多的表",
+    "sql_pattern": "SELECT schemaname,\n       relname as table_name,\n       n_live_tup,\n       n_dead_tup,\n       n_dead_tup::numeric / NULLIF(n_live_tup + n_dead_tup, 0) * 100 as dead_tuple_ratio,\n       last_vacuum,\n       last_autovacuum,\n       vacuum_count,\n       autovacuum_count\nFROM pg_stat_user_tables\nWHERE schemaname = 'public'\nAND n_dead_tup > {threshold}\nORDER BY n_dead_tup DESC;",
+    "parameters": [
+      {
+        "name": "threshold",
+        "type": "integer",
+        "default": 100,
+        "description": "死亡元组阈值"
+      }
+    ],
+    "examples": "查看死亡元组超过 100 的表",
+    "use_count": 0,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.890713",
+    "updated_at": "2026-03-28T20:01:14.890714"
+  },
+  {
+    "id": 9,
+    "name": "VACUUM 建议",
+    "category": "vacuum",
+    "description": "需要执行 VACUUM 的表",
+    "sql_pattern": "SELECT\n    schemaname || '.' || relname as table_name,\n    n_dead_tup,\n    last_autovacuum,\n    autovacuum_count,\n    CASE\n        WHEN n_dead_tup > 10000 THEN '急需 VACUUM'\n        WHEN n_dead_tup > 1000 THEN '建议 VACUUM'\n        ELSE '正常'\n    END as recommend,\n    'VACUUM ANALYZE ' || schemaname || '.' || relname as suggest_sql\nFROM pg_stat_user_tables\nWHERE schemaname = 'public'\nAND n_dead_tup > 0\nORDER BY n_dead_tup DESC;",
+    "parameters": [],
+    "examples": "查看需要 VACUUM 的表",
+    "use_count": 0,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.890897",
+    "updated_at": "2026-03-28T20:01:14.890899"
+  },
+  {
+    "id": 10,
+    "name": "连接状态",
+    "category": "connection",
+    "description": "当前数据库连接状态",
+    "sql_pattern": "SELECT\n    state,\n    COUNT(*) as count,\n    AVG(EXTRACT(EPOCH FROM (now() - query_start)) as avg_duration_sec\nFROM pg_stat_activity\nWHERE datname = current_database()\nGROUP BY state\nORDER BY count DESC;",
+    "parameters": [],
+    "examples": "查看当前连接状态",
+    "use_count": 0,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.891083",
+    "updated_at": "2026-03-28T20:01:14.891085"
+  },
+  {
+    "id": 11,
+    "name": "活跃连接详情",
+    "category": "connection",
+    "description": "当前正在执行的查询",
+    "sql_pattern": "SELECT\n    pid,\n    usename,\n    application_name,\n    client_addr,\n    state,\n    query,\n    state_change,\n    EXTRACT(EPOCH FROM (now() - query_start)) as duration_sec,\n    wait_event\nFROM pg_stat_activity\nWHERE datname = current_database()\nAND state = 'active'\nAND query_start < now() - interval '1 second'\nORDER BY query_start;",
+    "parameters": [],
+    "examples": "查看正在执行的查询",
+    "use_count": 0,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.891391",
+    "updated_at": "2026-03-28T20:01:14.891392"
+  },
+  {
+    "id": 12,
+    "name": "长事务",
+    "category": "connection",
+    "description": "运行时间过长的事务",
+    "sql_pattern": "SELECT\n    pid,\n    usename,\n    application_name,\n    state,\n    query_start,\n    EXTRACT(EPOCH FROM (now() - xact_start)) as xact_duration_sec,\n    state_change,\n    ROW_NUMBER() OVER(PARTITION BY state ORDER BY xact_start) as rn\nFROM pg_stat_activity\nWHERE datname = current_database()\nAND xact_start IS NOT NULL\nAND state <> 'idle'\nAND now() - xact_start > interval '1 minute'\nORDER BY xact_start;",
+    "parameters": [],
+    "examples": "查看超过 1 分钟的长事务",
+    "use_count": 0,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.891654",
+    "updated_at": "2026-03-28T20:01:14.891661"
+  },
+  {
+    "id": 13,
+    "name": "数据库统计概览",
+    "category": "database",
+    "description": "数据库整体统计信息",
+    "sql_pattern": "SELECT\n    numbackends as connections,\n    xact_commit,\n    xact_rollback,\n    blks_hit,\n    blks_read,\n    ROUND(blks_hit::numeric / NULLIF(blks_hit + blks_read, 0) * 100, 2) as cache_hit_ratio,\n    tup_returned,\n    tup_fetched,\n    tup_inserted,\n    tup_updated,\n    tup_deleted\nFROM pg_stat_database\nWHERE datname = current_database();",
+    "parameters": [],
+    "examples": "查看数据库统计概览",
+    "use_count": 0,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.891917",
+    "updated_at": "2026-03-28T20:01:14.891924"
+  },
+  {
+    "id": 14,
+    "name": "表大小排行",
+    "category": "table_stats",
+    "description": "按大小排序的表",
+    "sql_pattern": "SELECT\n    schemaname,\n    relname as table_name,\n    pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) as total_size,\n    pg_size_pretty(pg_relation_size(schemaname||'.'||relname)) as table_size,\n    pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname) - pg_relation_size(schemaname||'.'||relname)) as indexes_size,\n    n_live_tup + n_dead_tup as total_rows\nFROM pg_stat_user_tables\nWHERE schemaname = 'public'\nORDER BY pg_total_relation_size(schemaname||'.'||relname) DESC\nLIMIT {limit};",
+    "parameters": [
+      {
+        "name": "limit",
+        "type": "integer",
+        "default": 20,
+        "description": "返回条数"
+      }
+    ],
+    "examples": "查看最大的 20 张表",
+    "use_count": 0,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.892171",
+    "updated_at": "2026-03-28T20:01:14.892176"
+  },
+  {
+    "id": 15,
+    "name": "索引膨胀检测",
+    "category": "index_stats",
+    "description": "检测可能膨胀的索引",
+    "sql_pattern": "SELECT\n    schemaname,\n    relname as table_name,\n    indexrelname as index_name,\n    pg_size_pretty(pg_relation_size(indexrelid)) as index_size,\n    idx_scan,\n    ROUND((pg_relation_size(indexrelid)::numeric / NULLIF(n_live_tup, 0) * 100, 2) as index_row_ratio\nFROM pg_stat_user_indexes i\nJOIN pg_stat_user_tables t ON i.relid = t.relid\nWHERE schemaname = 'public'\nAND idx_scan < 100\nAND pg_relation_size(indexrelid) > 1024 * 1024\nORDER BY pg_relation_size(indexrelid) DESC;",
+    "parameters": [],
+    "examples": "检测索引膨胀",
+    "use_count": 0,
+    "is_favorite": false,
+    "created_at": "2026-03-28T20:01:14.892435",
+    "updated_at": "2026-03-28T20:01:14.892439"
+  }
+]

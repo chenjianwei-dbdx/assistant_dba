@@ -222,7 +222,10 @@ def login_page():
                                 st.error("❌ 用户名已存在")
                             else:
                                 # 创建新用户
-                                user = User(username=reg_username)
+                                user = User(
+                                    username=reg_username,
+                                    email=f"{reg_username}@smart-assistant.local"
+                                )
                                 user.set_password(reg_password)
                                 session.add(user)
                                 session.commit()

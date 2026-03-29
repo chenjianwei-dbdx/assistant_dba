@@ -89,11 +89,11 @@ class Database:
 
     def _init_postgresql(self, db_config: dict):
         """初始化 PostgreSQL"""
-        host = db_config.get("pg_host", "localhost")
-        port = db_config.get("pg_port", 5432)
-        username = db_config.get("pg_username", "postgres")
-        password = db_config.get("pg_password", "")
-        database = db_config.get("pg_database", "smart_assistant")
+        host = db_config.get("host", "localhost")
+        port = db_config.get("port", 5432)
+        username = db_config.get("username", "cjwdsg")
+        password = db_config.get("password", "")
+        database = db_config.get("database", "smart_assistant")
 
         db_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
 

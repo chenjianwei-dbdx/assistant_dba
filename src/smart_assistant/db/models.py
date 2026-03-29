@@ -19,9 +19,16 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
-    password_hash = Column(String(64), nullable=False)
+    email = Column(String(100), unique=True, nullable=False)
+    password_hash = Column(String(128), nullable=True)
+    full_name = Column(String(100))
+    phone = Column(String(20))
+    status = Column(String(20), default='active')
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login = Column(DateTime)
+    is_verified = Column(Boolean, default=False)
+    is_admin = Column(Boolean, default=False)
 
     conversations = relationship(
         "Conversation",

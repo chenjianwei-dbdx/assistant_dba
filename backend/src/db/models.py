@@ -61,3 +61,15 @@ class QueryHistory(Base):
     status = Column(String(20))  # success, failed
     error_message = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class VisitLog(Base):
+    """访问日志"""
+    __tablename__ = "visit_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    page = Column(String(100), nullable=False)  # 页面路径
+    user_id = Column(String(36), nullable=True)  # 用户ID（可选）
+    ip_address = Column(String(50), nullable=True)  # IP地址
+    user_agent = Column(String(255), nullable=True)  # 浏览器信息
+    created_at = Column(DateTime, default=datetime.utcnow)

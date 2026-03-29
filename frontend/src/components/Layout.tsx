@@ -7,6 +7,7 @@ const menuItems = [
   { key: '/dashboard', label: <Link to="/dashboard">控制台</Link> },
   { key: '/query', label: <Link to="/query">SQL 查询</Link> },
   { key: '/monitor', label: <Link to="/monitor">性能监控</Link> },
+  { key: '/templates', label: <Link to="/templates">SQL 模板</Link> },
   { key: '/connections', label: <Link to="/connections">数据库连接</Link> },
   { key: '/chat', label: <Link to="/chat">AI 助手</Link> },
 ]
