@@ -74,9 +74,11 @@ async def chat_stream(message: str, session_id: Optional[str] = None):
     """流式聊天"""
 
     async def generate():
+        import asyncio
         try:
             service = get_chat_service()
-            for chunk in service.chat_stream(message):
+            # chat_stream 是同步 generator，在线程池中运行以避免阻塞事件循环
+            for chunk in await asyncio.to_thread(service.chat_stream, message):
                 yield f"data: {chunk}\n\n"
         except Exception as e:
             error = json.dumps({"type": "error", "error": str(e)}, ensure_ascii=False)

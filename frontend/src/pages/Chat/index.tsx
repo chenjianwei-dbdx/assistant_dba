@@ -76,9 +76,21 @@ export default function Chat() {
       }
     }
 
-    eventSource.onerror = () => {
+    eventSource.onerror = (e) => {
       eventSource.close()
       setLoading(false)
+      // 更新最后一条助手消息显示错误
+      setMessages((prev) => {
+        const lastIndex = prev.length - 1
+        const updated = [...prev]
+        if (updated[lastIndex]?.role === 'assistant') {
+          updated[lastIndex] = {
+            ...updated[lastIndex],
+            content: updated[lastIndex].content || '抱歉，AI 响应失败了，请重试'
+          }
+        }
+        return updated
+      })
     }
   }
 

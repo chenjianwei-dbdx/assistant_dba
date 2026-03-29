@@ -55,7 +55,8 @@ class PerformanceAnalyzer:
         """从 AI 响应中提取结构化建议"""
         # 移除思考标签
         clean = re.sub(r'<think>[\s\S]*?</think>', '', response)
-        clean = re.sub(r'<think>.*$', '', clean, flags=re.MULTILINE)
+        clean = re.sub(r'<think>[\s\S]*?</think>', '', clean)  # 清理 MiniMax 扩展思考标签
+        clean = re.sub(r'<think>.*$', '', clean, flags=re.MULTILINE)  # 清理单行思考标签
 
         # 尝试提取 JSON
         json_match = re.search(r'```json\s*([\s\S]*?)\s*```', clean)
@@ -132,7 +133,8 @@ class PerformanceAnalyzer:
     def _clean_analysis_text(self, response: str) -> str:
         """清理分析文本，移除思考标签"""
         clean = re.sub(r'<think>[\s\S]*?</think>', '', response)
-        clean = re.sub(r'<think>.*$', '', clean, flags=re.MULTILINE)
+        clean = re.sub(r'<think>[\s\S]*?</think>', '', clean)  # 清理 MiniMax 扩展思考标签
+        clean = re.sub(r'<think>.*$', '', clean, flags=re.MULTILINE)  # 清理单行思考标签
         return clean.strip()
 
     def _build_prompt(self, overview: Dict, table_stats: List[Dict], index_stats: List[Dict] = None) -> str:

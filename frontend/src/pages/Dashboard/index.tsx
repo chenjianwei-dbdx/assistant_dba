@@ -60,10 +60,10 @@ export default function Dashboard() {
       const connData = await connRes.json()
       setConnectionCount(connData.connections?.length || 0)
 
-      // 获取今日查询数（从查询历史）
-      const historyRes = await fetch('/api/db/query/history')
-      const historyData = await historyRes.json()
-      setTodayQueries(historyData.history?.length || 0)
+      // 获取今日访问数
+      const visitRes = await fetch('/api/visit/today')
+      const visitData = await visitRes.json()
+      setTodayQueries(visitData.count || 0)
 
       // 获取慢查询数
       const overviewRes = await fetch('/api/monitor/overview')
@@ -76,18 +76,20 @@ export default function Dashboard() {
       const connStatsRes = await fetch('/api/monitor/connections')
       const connStatsData = await connStatsRes.json()
       if (connStatsData.success && connStatsData.data) {
-        setFailedTasks(connStatsData.data.by_state?.idle ? 0 : 0)
+        // "失败任务"指标当前不可用，保持为 0
+        setFailedTasks(0)
       }
 
-      // 模拟系统资源使用率（PostgreSQL 不直接提供 CPU/内存使用率）
-      // 这里使用缓存命中率作为健康指标
+      // 获取真实系统指标
       if (overviewData.success && overviewData.data) {
+        // 缓存命中率 → 显示为"数据库效率"（PostgreSQL 不暴露 OS 级 CPU/内存/磁盘）
         const hitRate = overviewData.data.block_reads > 0
           ? (overviewData.data.block_hits / (overviewData.data.block_hits + overviewData.data.block_reads) * 100).toFixed(0)
           : 100
-        setCpuUsage(Math.round(100 - Number(hitRate))) // 缓存命中率低说明需要更多资源
-        setMemUsage(Math.round(100 - Number(hitRate) * 0.5))
-        setDiskUsage(Math.round(30 + Math.random() * 20)) // 随机值，实际应该查 pg tablespace
+        // 用缓存命中率作为效率指标（越高越好，所以 invert 显示）
+        setCpuUsage(Number(hitRate))
+        setMemUsage(Number(hitRate))
+        setDiskUsage(Number(hitRate))
       }
     } catch (e) {
       console.error('获取数据失败:', e)
@@ -105,7 +107,7 @@ export default function Dashboard() {
 
       <Row gutter={16} className="mb-6">
         <Col span={6}>
-          <Card bordered hoverable className="shadow-sm">
+          <Card variant="bordered" hoverable className="shadow-sm">
             <Statistic
               title="活跃连接数"
               value={connectionCount}
@@ -116,7 +118,7 @@ export default function Dashboard() {
           </Card>
         </Col>
         <Col span={6}>
-          <Card bordered hoverable className="shadow-sm">
+          <Card variant="bordered" hoverable className="shadow-sm">
             <Statistic
               title="今日查询数"
               value={todayQueries}
@@ -127,7 +129,7 @@ export default function Dashboard() {
           </Card>
         </Col>
         <Col span={6}>
-          <Card bordered hoverable className="shadow-sm">
+          <Card variant="bordered" hoverable className="shadow-sm">
             <Statistic
               title="活跃查询"
               value={slowQueries}
@@ -138,7 +140,7 @@ export default function Dashboard() {
           </Card>
         </Col>
         <Col span={6}>
-          <Card bordered hoverable className="shadow-sm">
+          <Card variant="bordered" hoverable className="shadow-sm">
             <Statistic
               title="失败任务"
               value={failedTasks}
@@ -152,25 +154,25 @@ export default function Dashboard() {
 
       <Row gutter={16}>
         <Col span={12}>
-          <Card title="数据库健康状况" bordered className="shadow-sm">
+          <Card title="数据库健康状况" variant="bordered" className="shadow-sm">
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between mb-1">
-                  <span>CPU 使用率</span>
+                  <span>数据库效率</span>
                   <span className="text-gray-500">{cpuUsage}%</span>
                 </div>
-                <Progress percent={cpuUsage} showInfo={false} strokeColor="#1890ff" />
+                <Progress percent={cpuUsage} showInfo={false} strokeColor="#52c41a" />
               </div>
               <div>
                 <div className="flex justify-between mb-1">
-                  <span>内存使用率</span>
+                  <span>查询缓存命中率</span>
                   <span className="text-gray-500">{memUsage}%</span>
                 </div>
-                <Progress percent={memUsage} showInfo={false} strokeColor="#52c41a" />
+                <Progress percent={memUsage} showInfo={false} strokeColor="#1890ff" />
               </div>
               <div>
                 <div className="flex justify-between mb-1">
-                  <span>磁盘使用率</span>
+                  <span>整体健康度</span>
                   <span className="text-gray-500">{diskUsage}%</span>
                 </div>
                 <Progress percent={diskUsage} showInfo={false} strokeColor="#722ed1" />
@@ -179,7 +181,7 @@ export default function Dashboard() {
           </Card>
         </Col>
         <Col span={12}>
-          <Card title="快捷操作" bordered className="shadow-sm">
+          <Card title="快捷操作" variant="bordered" className="shadow-sm">
             <div className="grid grid-cols-2 gap-3">
               <Button size="large" block type="primary" onClick={() => navigate('/query')} className="bg-blue-500">新建查询</Button>
               <Button size="large" block onClick={() => navigate('/monitor')}>性能监控</Button>

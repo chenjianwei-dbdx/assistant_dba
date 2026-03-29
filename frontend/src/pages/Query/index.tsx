@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Button, Select, Table, Tabs, Space, message, Switch, Input, Spin, Alert } from 'antd'
+import { Button, Select, Table, Tabs, Space, message, Switch, Input, Spin, Alert, InputNumber } from 'antd'
 import {
   PlayCircleOutlined,
   FormatPainterOutlined,
@@ -11,6 +11,67 @@ import type { ColumnsType } from 'antd/es/table'
 
 const { Option } = Select
 const { TextArea } = Input
+
+// 模板参数输入表单组件
+interface TemplateParamFormProps {
+  parameters: { name: string; type: string; default: any; description: string }[]
+  onExecute: (params: Record<string, any>) => void
+  loading: boolean
+}
+
+function TemplateParamForm({ parameters, onExecute, loading }: TemplateParamFormProps) {
+  const [params, setParams] = useState<Record<string, any>>(() => {
+    const initial: Record<string, any> = {}
+    parameters.forEach(p => {
+      initial[p.name] = p.default
+    })
+    return initial
+  })
+
+  const handleParamChange = (name: string, value: any) => {
+    setParams(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleExecute = () => {
+    onExecute(params)
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        {parameters.map(p => (
+          <div key={p.name} className="flex flex-col">
+            <label className="text-sm text-gray-600 mb-1">
+              {p.name} {p.description && `(${p.description})`}
+            </label>
+            {p.type === 'integer' ? (
+              <InputNumber
+                value={params[p.name]}
+                onChange={(v) => handleParamChange(p.name, v)}
+                min={0}
+                style={{ width: '100%' }}
+              />
+            ) : (
+              <Input
+                value={params[p.name]}
+                onChange={(e) => handleParamChange(p.name, e.target.value)}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+      <Button
+        type="primary"
+        icon={<PlayCircleOutlined />}
+        onClick={handleExecute}
+        loading={loading}
+        className="bg-green-500"
+      >
+        执行模板
+      </Button>
+    </div>
+  )
+}
 
 interface QueryResult {
   key: string
@@ -35,6 +96,7 @@ export default function Query() {
   const [aiExplanation, setAiExplanation] = useState('')
   const [aiSummary, setAiSummary] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [matchedTemplate, setMatchedTemplate] = useState<any>(null)
 
   // 执行计划和历史
   const [explainResult, setExplainResult] = useState('')
@@ -161,6 +223,15 @@ export default function Query() {
       })
       const data = await res.json()
       if (data.success && data.data) {
+        // 处理模板匹配
+        if (data.data.is_template_match && data.data.matched_template) {
+          const template = data.data.matched_template
+          setMatchedTemplate(template)
+          setAiExplanation(data.data.explanation || `已匹配模板：${template.name}`)
+          setAiStatus('generated')
+          return
+        }
+
         // 处理元查询（查询表列表等）
         if (data.data.is_meta_query && data.data.tables) {
           setAiExplanation(data.data.explanation || '')
@@ -234,6 +305,42 @@ export default function Query() {
     setAiExplanation('')
     setAiSummary('')
     setErrorMessage('')
+    setMatchedTemplate(null)
+  }
+
+  // 执行匹配的模板
+  const handleTemplateExecute = async (template: any, params: Record<string, any>) => {
+    setAiStatus('executing')
+    setLoading(true)
+    setErrorMessage('')
+    try {
+      const res = await fetch('/api/templates/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          template_id: template.id,
+          params: params
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setQueryResult({
+          columns: data.columns || [],
+          rows: data.rows || []
+        })
+        setExecutionTime(0)
+        setAiStatus('completed')
+        message.success(`执行成功，返回 ${data.row_count || 0} 行`)
+      } else {
+        setErrorMessage(data.error || '执行失败')
+        setAiStatus('error')
+      }
+    } catch (e) {
+      setErrorMessage('执行失败')
+      setAiStatus('error')
+    } finally {
+      setLoading(false)
+    }
   }
 
   // Helper to check if AI is generating
@@ -422,25 +529,67 @@ export default function Query() {
             {(aiStatus === 'generated' || aiStatus === 'executing' || aiStatus === 'completed') && (
               <div className="space-y-4">
                 <Alert
-                  message="AI 已生成 SQL"
+                  message={matchedTemplate ? `已匹配模板：${matchedTemplate.name}` : 'AI 已生成 SQL'}
                   description={aiExplanation}
                   type="info"
                   showIcon
                 />
-                <div className="bg-gray-800 rounded-lg p-4 text-white font-mono text-sm">
-                  <pre className="whitespace-pre-wrap">{generatedSql}</pre>
-                </div>
-                {aiStatus === 'generated' && (
-                  <Button
-                    type="primary"
-                    icon={<PlayCircleOutlined />}
-                    onClick={handleAiExecute}
-                    loading={loading}
-                    className="bg-green-500"
-                  >
-                    执行此 SQL
-                  </Button>
+
+                {/* 模板模式：显示模板SQL和参数 */}
+                {matchedTemplate && (
+                  <>
+                    <div className="bg-gray-100 rounded-lg p-4">
+                      <div className="text-sm text-gray-600 mb-2">
+                        <strong>描述:</strong> {matchedTemplate.description}
+                      </div>
+                      <div className="bg-gray-800 rounded p-3 text-white font-mono text-sm">
+                        <pre className="whitespace-pre-wrap">{matchedTemplate.sql_pattern}</pre>
+                      </div>
+                      {matchedTemplate.parameters && matchedTemplate.parameters.length > 0 && (
+                        <div className="mt-3 pt-3 border-t">
+                          <div className="text-sm font-medium mb-2">参数设置:</div>
+                          <TemplateParamForm
+                            parameters={matchedTemplate.parameters}
+                            onExecute={(params) => handleTemplateExecute(matchedTemplate, params)}
+                            loading={aiStatus === 'executing'}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    {aiStatus === 'generated' && !matchedTemplate.parameters?.length && (
+                      <Button
+                        type="primary"
+                        icon={<PlayCircleOutlined />}
+                        onClick={() => handleTemplateExecute(matchedTemplate, {})}
+                        loading={loading}
+                        className="bg-green-500"
+                      >
+                        执行模板
+                      </Button>
+                    )}
+                  </>
                 )}
+
+                {/* AI生成SQL模式 */}
+                {!matchedTemplate && generatedSql && (
+                  <>
+                    <div className="bg-gray-800 rounded-lg p-4 text-white font-mono text-sm">
+                      <pre className="whitespace-pre-wrap">{generatedSql}</pre>
+                    </div>
+                    {aiStatus === 'generated' && (
+                      <Button
+                        type="primary"
+                        icon={<PlayCircleOutlined />}
+                        onClick={handleAiExecute}
+                        loading={loading}
+                        className="bg-green-500"
+                      >
+                        执行此 SQL
+                      </Button>
+                    )}
+                  </>
+                )}
+
                 {aiStatus === 'executing' && (
                   <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
                     <Spin />
@@ -489,8 +638,8 @@ export default function Query() {
             执行
           </Button>
         )}
-        {!aiMode && <Button icon={<FormatPainterOutlined />}>格式化</Button>}
-        {!aiMode && <Button icon={<ThunderboltOutlined />}>执行计划</Button>}
+        {!aiMode && <Button icon={<FormatPainterOutlined />} disabled>格式化</Button>}
+        {!aiMode && <Button icon={<ThunderboltOutlined />} onClick={handleExplain}>执行计划</Button>}
         <Button icon={<ExportOutlined />}>导出</Button>
         {executionTime > 0 && (
           <span className="ml-4 text-gray-500 self-center">
