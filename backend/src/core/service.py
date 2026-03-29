@@ -4,7 +4,8 @@ Chat Service
 """
 import json
 from typing import AsyncGenerator
-from .llm import LLMClient, LLMError
+from .llm import LLMClient
+from .errors import LLMError
 from .intent import IntentAnalyzer
 from ..plugins.registry import get_registry
 from ..plugins.base import PluginContext

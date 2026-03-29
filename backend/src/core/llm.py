@@ -6,6 +6,7 @@ Python 3.6.8 兼容
 import json
 import requests
 from typing import List, Dict, Generator
+from .errors import LLMError
 
 
 class LLMClient:
@@ -145,8 +146,3 @@ class LLMClient:
                 except json.JSONDecodeError:
                     continue
         return None
-
-
-class LLMError(Exception):
-    """LLM 调用错误"""
-    pass
