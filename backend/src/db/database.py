@@ -37,6 +37,11 @@ class DatabaseManager:
         finally:
             conn.close()
 
+    def get_raw_connection(self):
+        """获取原始 psycopg2 连接（由调用方管理生命周期）"""
+        dsn = self._build_dsn()
+        return psycopg2.connect(**dsn)
+
     def get_connection_info(self) -> dict:
         """获取当前连接信息（用于调试）"""
         return self._build_dsn()
