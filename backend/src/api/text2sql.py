@@ -6,8 +6,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
-from .generate import generate_sql
-from .explain import execute_sql, explain_sql
+from .nl2sql.generate import generate_sql
+from .nl2sql.explain import execute_sql, explain_sql
 
 router = APIRouter()
 

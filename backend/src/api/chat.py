@@ -1,13 +1,12 @@
-"""
-Chat API routes
-流式输出支持
-"""
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+"""Chat API - 使用 LangGraph"""
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-import asyncio
-import json
+
+from ..core.graph.builder import get_graph
+from ..core.graph.state import ConversationState, Message
+from ..core.dependencies import get_llm_client, get_plugin_registry, get_plugin_context
+from ..core.errors import DBAError
 
 router = APIRouter()
 
@@ -18,85 +17,99 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    message: str
+    response: str
     session_id: str
-    tool_used: Optional[str] = None
-    success: bool = True
+    tool_name: Optional[str] = None
+    success: bool
 
 
-def get_chat_service():
-    """获取聊天服务（延迟导入避免循环依赖）"""
-    from src.core.llm import LLMClient
-    from src.core.service import ChatService
-    from src.config import get_config
-
-    config = get_config()
-    llm_client = LLMClient(config["llm"])
-    return ChatService(llm_client)
+def get_tools_for_graph():
+    """获取工具列表，格式化为 LangGraph 可用"""
+    try:
+        registry = get_plugin_registry()
+        tools = registry.list_all()
+        return [
+            {
+                "name": t.name,
+                "description": t.description,
+                "parameters": t.parameters or []
+            }
+            for t in tools
+        ]
+    except Exception:
+        return []
 
 
 @router.post("/")
-async def chat(request: ChatRequest):
-    """发送聊天消息（非流式）"""
-    try:
-        service = get_chat_service()
-        result = service.process_message(request.message)
+async def chat(req: ChatRequest) -> ChatResponse:
+    """处理对话请求（通过 LangGraph）"""
+    graph = get_graph()
 
-        if result["type"] == "tool_result":
-            return ChatResponse(
-                message=str(result.get("output", result.get("error", ""))),
-                session_id=request.session_id or "new-session",
-                tool_used=result.get("tool_name"),
-                success=result.get("success", True)
+    # 获取依赖
+    llm_client = get_llm_client()
+    registry = get_plugin_registry()
+    context = get_plugin_context()
+
+    # 构建初始状态
+    initial_state: ConversationState = {
+        "messages": [
+            Message(
+                role="user",
+                content=req.message,
+                tool_name=None,
+                tool_result=None,
+                timestamp=None
             )
-        elif result["type"] == "param_clarification":
-            return ChatResponse(
-                message=result["message"],
-                session_id=request.session_id or "new-session",
-                tool_used=result.get("tool_name"),
-                success=True
-            )
-        else:
-            return ChatResponse(
-                message=result.get("message", "OK"),
-                session_id=request.session_id or "new-session"
-            )
+        ],
+        "session_id": req.session_id,
+        "current_tool": None,
+        "extracted_params": {},
+        "missing_params": [],
+        "intent_result": None,
+        "tool_result": None,
+        "error": None
+    }
+
+    # 配置
+    config = {
+        "configurable": {
+            "llm_client": llm_client,
+            "tools": get_tools_for_graph(),
+            "registry": registry,
+            "context": context
+        }
+    }
+
+    # 执行图
+    try:
+        result = graph.invoke(initial_state, config=config)
     except Exception as e:
-        return ChatResponse(
-            message=f"Error: {str(e)}",
-            session_id=request.session_id or "new-session",
-            success=False
-        )
+        raise DBAError(f"Graph execution failed: {str(e)}")
+
+    # 提取最后一条 assistant 消息
+    assistant_messages = [m for m in result.get("messages", []) if m.get("role") == "assistant"]
+    if assistant_messages:
+        response_text = assistant_messages[-1].get("content", "")
+    else:
+        response_text = "抱歉，我无法处理这个请求。"
+
+    # 提取工具名（如果有）
+    tool_name = result.get("current_tool")
+
+    # 判断是否成功
+    success = True
+    if result.get("tool_result"):
+        success = result["tool_result"].get("success", True)
+
+    return ChatResponse(
+        response=response_text,
+        session_id=result.get("session_id") or req.session_id or "unknown",
+        tool_name=tool_name,
+        success=success
+    )
 
 
 @router.get("/stream")
 async def chat_stream(message: str, session_id: Optional[str] = None):
-    """流式聊天"""
-
-    async def generate():
-        import asyncio
-        try:
-            service = get_chat_service()
-            # chat_stream 是同步 generator，在线程池中运行以避免阻塞事件循环
-            for chunk in await asyncio.to_thread(service.chat_stream, message):
-                yield f"data: {chunk}\n\n"
-        except Exception as e:
-            error = json.dumps({"type": "error", "error": str(e)}, ensure_ascii=False)
-            yield f"data: {error}\n\n"
-        yield "data: {\"type\": \"done\"}\n\n"
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"
-        }
-    )
-
-
-@router.post("/tool")
-async def chat_with_tool(request: ChatRequest):
-    """使用工具的聊天"""
-    return await chat(request)
+    """流式对话（TODO: 实现流式版本）"""
+    raise HTTPException(status_code=501, detail="Streaming not yet implemented")
